@@ -27,6 +27,9 @@
     <ClCompile Include="vmp_hlp.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="x86_emu.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pe_loader.h">
@@ -38,5 +41,22 @@
     <ClInclude Include="vmp_hlp.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="mbytes.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="macro_list.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="x86_emu.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\test_data\vmp_test1.exe">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="..\test_data\vmp_test1.vmp.exe">
+      <Filter>资源文件</Filter>
+    </None>
   </ItemGroup>
 </Project>

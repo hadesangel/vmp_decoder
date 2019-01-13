@@ -98,7 +98,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;XED_DBGHELP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>xed.lib;xed-ild.lib;xed-examples.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>xed.lib;xed-ild.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>libcmt;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
   </ItemDefinitionGroup>
@@ -135,11 +135,19 @@
     <ClCompile Include="pe_loader.cpp" />
     <ClCompile Include="vmp_decoder.cpp" />
     <ClCompile Include="vmp_hlp.cpp" />
+    <ClCompile Include="x86_emu.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="macro_list.h" />
+    <ClInclude Include="mbytes.h" />
     <ClInclude Include="pe_loader.h" />
     <ClInclude Include="vmp_decoder.h" />
     <ClInclude Include="vmp_hlp.h" />
+    <ClInclude Include="x86_emu.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\test_data\vmp_test1.exe" />
+    <None Include="..\test_data\vmp_test1.vmp.exe" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -7,6 +7,7 @@ extern "C" {
 #include <DbgHelp.h>
 #include <winnt.h>
 #include <stdio.h>
+#include "mbytes.h"
 
 #pragma comment(lib, "dbghelp.lib")
 
@@ -57,16 +58,21 @@ extern "C" {
 
         if (pfile_header->Machine == 0x14c)
         {
-            printf("[%s] file is x86 arch\n", mod->filename);
+            //printf("[%s] file is x86 arch\n", mod->filename);
         }
         else if (pfile_header->Machine == 0x8664)
         { 
             mod->is_x64 = 1;
-            printf("[%s] file is x64 arch\n", mod->filename);
+            //printf("[%s] file is x64 arch\n", mod->filename);
         }
         else
         {
-            printf("[%s] file is un-recognized[%ul]", mod->filename, pfile_header->Machine);
+            printf("[%s] file is un-recognized[%ul]. %s:%d\r\n", mod->filename, pfile_header->Machine, __FILE__, __LINE__);
+        }
+
+        if (mod->is_x64)
+        { 
+            printf("pe_loader() failed with un-support X64 arch. %s:%d\r\n", __FILE__, __LINE__);
         }
 
         return mod;
@@ -93,9 +99,7 @@ extern "C" {
         }
     }
 
-
 #define counts_of_array(_a)             (sizeof (_a) / sizeof (_a[0]))
-
 
 
     PIMAGE_DOS_HEADER pe_loader_get_dos_header (struct pe_loader *mod)
@@ -124,19 +128,25 @@ extern "C" {
         return mod->is_x64;
     }
 
-    long pe_loader_section_find(struct pe_loader *mod, char *sec_name, unsigned char **section_start, int *section_size)
+    long pe_loader_section_find(struct pe_loader *mod, const char *sec_name, unsigned char **section_start, int *section_size)
     {
         PIMAGE_DOS_HEADER pdos_header;
-        PIMAGE_NT_HEADERS pnt_headder;
+        PIMAGE_NT_HEADERS32 pnt_headder;
         PIMAGE_FILE_HEADER pfile_header;
-        PIMAGE_OPTIONAL_HEADER popt_header;
+        PIMAGE_OPTIONAL_HEADER32 popt_header;
         PIMAGE_SECTION_HEADER psec_header;
         int i, len = (int)strlen(sec_name), found = 0;
         if (len > IMAGE_SIZEOF_SHORT_NAME)
             len = IMAGE_SIZEOF_SHORT_NAME;
 
+        if (mod->is_x64)
+        { 
+            printf("pe_loader_section_find() not support x64 arch. %s:%d\r\n", __FILE__, __LINE__);
+            return 0;
+        }
+
         pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
-        pnt_headder = (PIMAGE_NT_HEADERS)(((char *)pdos_header + pdos_header->e_lfanew));
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
         popt_header = &pnt_headder->OptionalHeader;
         pfile_header = &pnt_headder->FileHeader;
         psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
@@ -156,16 +166,51 @@ extern "C" {
 
             if (section_start)
             { 
-                *section_start = (unsigned char *)mod->image_base + psec_header[i].VirtualAddress;
+                *section_start = (unsigned char *)mod->image_base + psec_header[i].PointerToRawData;
             }
 
             if (section_size)
             { 
-                *section_size = (psec_header[i].VirtualAddress > 0) ?
-                    psec_header[i].VirtualAddress : psec_header[i].SizeOfRawData;
+                *section_size = (psec_header[i].SizeOfRawData > 0) ?
+                    psec_header[i].SizeOfRawData: psec_header[i].SizeOfRawData;
             }
 
             return 1;
+        }
+
+        return 0;
+    }
+
+    int pe_loader_sym_find (struct pe_loader *mod, DWORD iat_addr, char *sym_name, int sym_buf_siz)
+    {
+        PIMAGE_DOS_HEADER pdos_header;
+        PIMAGE_NT_HEADERS32 pnt_headder;
+        PIMAGE_OPTIONAL_HEADER32 popt_header = NULL;
+        DWORD rfa, rva;
+        IMAGE_IMPORT_BY_NAME *ii_name;
+
+        pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
+        popt_header = &pnt_headder->OptionalHeader;
+
+        //printf("iat addr = 0x%08x, popt_head = 0x%08x\r\n", iat_addr, popt_header->ImageBase);
+
+        rfa = pe_loader_rva2rfa(mod, iat_addr - popt_header->ImageBase);
+        if (!rfa)
+        {
+            printf("pe_loader_sym_find() failed when pe_loader_rva2fa(). %s:%d\r\n", __FILE__, __LINE__);
+            return -1;
+        }
+
+        rva = mbytes_read_int_little_endian_4b(((char *)(mod->image_base) + rfa));
+        if (rva > popt_header->ImageBase)
+        { 
+            rva -= popt_header->ImageBase;
+        }
+        if (rva && (rfa = pe_loader_rva2rfa(mod, rva)))
+        { 
+            ii_name = (IMAGE_IMPORT_BY_NAME *)((char *)mod->image_base + rfa);
+            strcpy(sym_name, ii_name->Name);
         }
 
         return 0;
@@ -274,7 +319,7 @@ extern "C" {
         }
     }
 
-DWORD pe_loader_rva2fa(struct pe_loader *mod, DWORD rva)
+DWORD pe_loader_rva2rfa(struct pe_loader *mod, DWORD rva)
 {
     PIMAGE_DOS_HEADER pdos_header;
     PIMAGE_NT_HEADERS32 pnt_headder;
@@ -300,6 +345,125 @@ DWORD pe_loader_rva2fa(struct pe_loader *mod, DWORD rva)
         {
             delta = (psec_header[i].VirtualAddress - psec_header[i].PointerToRawData);
             return rva - delta;
+        }
+    }
+
+    printf("pe_loader_rva2fa() failed with invalid param[rva=0x%08x]. %s:%d\r\n", rva, __FILE__, __LINE__);
+
+    return 0;
+}
+
+DWORD pe_loader_fa2rva(struct pe_loader *mod, DWORD64 fa)
+{
+    DWORD rfa;
+
+    PIMAGE_DOS_HEADER pdos_header;
+    PIMAGE_NT_HEADERS32 pnt_headder;
+    PIMAGE_FILE_HEADER pfile_header;
+    PIMAGE_OPTIONAL_HEADER32 popt_header = NULL;
+    PIMAGE_SECTION_HEADER psec_header;
+    DWORD delta;
+    int i;
+
+    if (mod->is_x64)
+    { 
+        printf("pe_loader_fa2rva() failed with un-support x64\n");
+        return 0;
+    }
+
+
+    pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+    pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
+    popt_header = &pnt_headder->OptionalHeader;
+    pfile_header = &pnt_headder->FileHeader;
+    psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
+
+    if ((fa > (DWORD64)mod->image_base) && (fa > popt_header->ImageBase))
+    {
+        rfa = (DWORD)(fa - (DWORD64)mod->image_base);
+    }
+    else
+    { 
+        rfa = (DWORD)(fa - (DWORD64)popt_header->ImageBase);
+    }
+
+    for (i = 0; i < pfile_header->NumberOfSections; i++)
+    {
+        if ((rfa >= psec_header[i].PointerToRawData)
+            && (rfa < (psec_header[i].PointerToRawData + psec_header[i].SizeOfRawData)))
+        {
+            delta = (psec_header[i].VirtualAddress - psec_header[i].PointerToRawData);
+            return (rfa + delta);
+        }
+    }
+
+    return 0;
+}
+
+DWORD64 pe_loader_fa_fix(struct pe_loader *mod, DWORD64 fa, int rva)
+{
+    PIMAGE_DOS_HEADER pdos_header;
+    PIMAGE_NT_HEADERS32 pnt_headder;
+    PIMAGE_FILE_HEADER pfile_header;
+    PIMAGE_OPTIONAL_HEADER32 popt_header = NULL;
+    PIMAGE_SECTION_HEADER psec_header;
+    DWORD delta, new_rva, rfa;
+    int i, j;
+
+    if (mod->is_x64)
+    { 
+        printf("pe_loader_fa2rva() failed with un-support x64\n");
+        return 0;
+    }
+
+    pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+    pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
+    popt_header = &pnt_headder->OptionalHeader;
+    pfile_header = &pnt_headder->FileHeader;
+    psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
+
+    if ((fa > (DWORD64)mod->image_base) && (fa > popt_header->ImageBase))
+    {
+        rfa = (DWORD)(fa - (DWORD64)mod->image_base);
+    }
+    else
+    { 
+        rfa = (DWORD)(fa - (DWORD64)popt_header->ImageBase);
+    }
+
+#define PE_RFA_IN_SECTION(_rfa, _sec)           (((_rfa) >= (_sec).PointerToRawData) && ((_rfa) < ((_sec).PointerToRawData + (_sec).SizeOfRawData)))
+#define PE_RVA_IN_SECTION(_rva, _sec)           (((_rva) >= (_sec).VirtualAddress) && ((_rva) < ((_sec).VirtualAddress + (_sec).Misc.VirtualSize)))
+
+    for (i = 0; i < pfile_header->NumberOfSections; i++)
+    {
+        if (PE_RFA_IN_SECTION(rfa, psec_header[i]))
+        {
+            if (PE_RFA_IN_SECTION(rfa + rva, psec_header[i]))
+            {
+                return (DWORD64)mod->image_base + rfa + rva;
+            }
+
+            delta = (psec_header[i].VirtualAddress - psec_header[i].PointerToRawData);
+            new_rva = rfa + delta;
+            break;
+        }
+    }
+
+    if (i == pfile_header->NumberOfSections)
+    {
+        printf("pe_loadef_fa_fix() failed with address[fa:%lld]. %s:%d\r\n", fa, __FILE__, __LINE__);
+        return 0;
+    }
+
+    new_rva += rva;
+
+    for (j = 0; j < pfile_header->NumberOfSections; j++)
+    {
+        if (PE_RVA_IN_SECTION(new_rva, psec_header[j]))
+        {
+            rfa = new_rva - psec_header[j].VirtualAddress;
+
+            return (DWORD64)mod->image_base + rfa + psec_header[j].PointerToRawData;
         }
     }
 
