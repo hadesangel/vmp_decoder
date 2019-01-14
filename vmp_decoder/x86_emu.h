@@ -97,6 +97,8 @@ typedef struct x86_emu_eflags
     unsigned int vm     : 1;    // virtual-8086 mode 
     unsigned int ac     : 1;    // alignment check
     unsigned int vif    : 1;    // virtual interupt flag;
+
+    uint32_t    known;
 } x86_emu_eflags_t;
 
 typedef struct x86_emu_operand

@@ -12,6 +12,9 @@ static int x86_emu_modrm_analysis(uint8_t modrm, int *dst_type, int *src_type);
 static struct x86_emu_reg *x86_emu_reg_get(struct x86_emu_mod *mod, int reg_type);
 static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur, int oper_size1, int *dst_type, int *src_type, struct x86_emu_reg *imm);
 
+static int x86_emu_cf_set(struct x86_emu_mod *mod);
+static int x86_emu_cf_get(struct x86_emu_mod *mod);
+
 struct x86_emu_mod *x86_emu_create(int word_size)
 {
     struct x86_emu_mod *mod;
