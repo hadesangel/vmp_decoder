@@ -4,21 +4,58 @@
 
 #include <stdint.h>
 
-#define REG_TYPE_EAX            1
-#define REG_TYPE_EBX            2
-#define REG_TYPE_ECX            3
-#define REG_TYPE_EDX            4
-#define REG_TYPE_EDI            5
-#define REG_TYPE_ESI            6
-#define REG_TYPE_EBP            7
-#define REG_TYPE_ESP            8
+#define OPERAND_TYPE_REG_EAX    1    
+#define OPERAND_TYPE_REG_EBX    2
+#define OPERAND_TYPE_REG_ECX    3    
+#define OPERAND_TYPE_REG_EDX    4    
+#define OPERAND_TYPE_REG_EDI    5    
+#define OPERAND_TYPE_REG_ESI    6    
+#define OPERAND_TYPE_REG_EBP    7    
+#define OPERAND_TYPE_REG_ESP    8    
+
+#define OPERAND_TYPE_IMM        16
+
+#if 0
+
+#define X86_EMU_REG_GET_r8(_r)          ((uint8_t)((_r)->val[0]))
+#define X86_EMU_REG_GET_r16(_r)         *((uint16_t *)((_r)->val))
+#define X86_EMU_REG_GET_r32(_r)         *((uint32_t *)((_r)->val))
+
+#define X86_EMU_REG_SET_r8(_r, _v)      ((_r)->val[0] = (v))
+#define X86_EMU_REG_SET_r16(_r, _v)     (*((uint16_t *)((_r)->val)) = (v))
+#define X86_EMU_REG_SET_r32(_r, _v)     (*((uint32_t *)((_r)->val)) = (v))
 
 typedef struct x86_emu_reg
 {
     uint32_t    type;
     uint32_t    known;
-    uint32_t    val;
+    uint8_t     val[4];
 } x86_emu_reg_t;
+
+#else
+
+#define X86_EMU_REG_GET_r8(_r)          ((_r)->u.r8)
+#define X86_EMU_REG_GET_r16(_r)         ((_r)->u.r16)
+#define X86_EMU_REG_GET_r32(_r)         ((_r)->u.r32)
+
+#define X86_EMU_REG_SET_r8(_r, _v)      ((_r)->u.r8 = (_v))
+#define X86_EMU_REG_SET_r16(_r, _v)     ((_r)->u.r16 = (_v))
+#define X86_EMU_REG_SET_r32(_r, _v)     ((_r)->u.r32 = (_v))
+
+typedef struct x86_emu_reg
+{
+    uint32_t    type;
+    uint32_t    known;
+    union
+    {
+        uint8_t     r8;
+        uint16_t    r16;
+        uint32_t    r32;
+        uint64_t    r64;
+    } u;
+} x86_emu_reg_t;
+
+#endif
 
 typedef struct x86_emu_operand
 {
@@ -33,6 +70,7 @@ typedef struct x86_emu_operand
         a_reg16,
         a_reg32,
         a_reg64,
+        a_eflags,
     } kind;
 
     union
@@ -43,6 +81,7 @@ typedef struct x86_emu_operand
         uint64_t   v64;
         int        vN;
         struct x86_emu_reg reg;
+        struct x86_emu_eflags eflags;
     } u;
 } _x86_emu_operand;
 
@@ -83,17 +122,23 @@ typedef struct x86_emu_mod
 
     x86_emu_eflags_t    eflags;
 
-    struct x86_emu_operand stack[1024];
-} x86_emu_mod;
+    struct 
+    {
+        struct x86_emu_operand  data[1024];
+        int top;
+    } stack;
+
+    int     oper_size;
+} x86_emu_mod_t;
 
 struct x86_emu_mod *x86_emu_create(int word_size);
-int x86_emu_destroy(struct x86_emu_mod *);
+int x86_emu_destroy(struct x86_emu_mod *mod);
 
-
-int x86_emu_run(struct x86_emu_mod *mod, char *code, int len);
+int x86_emu_run(struct x86_emu_mod *mod, unsigned char *code, int len);
 
 int x86_emu_push_reg(struct x86_emu_mod *mod, int reg, int val, int siz);
 int x86_emu_push_imm(struct x86_emu_mod *mod, int val, int siz);
+int x86_emu_push_eflags(struct x86_emu_mod *mod);
 
 
 #endif
