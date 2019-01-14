@@ -1,4 +1,9 @@
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef __x86_emu_h__
 #define __x86_emu_h__
 
@@ -38,9 +43,22 @@ typedef struct x86_emu_reg
 #define X86_EMU_REG_GET_r16(_r)         ((_r)->u.r16)
 #define X86_EMU_REG_GET_r32(_r)         ((_r)->u.r32)
 
-#define X86_EMU_REG_SET_r8(_r, _v)      ((_r)->u.r8 = (_v))
-#define X86_EMU_REG_SET_r16(_r, _v)     ((_r)->u.r16 = (_v))
-#define X86_EMU_REG_SET_r32(_r, _v)     ((_r)->u.r32 = (_v))
+#define X86_EMU_REG_SET_r8(_r, _v)  \
+    do { \
+        (_r)->known |= 0xff; \
+        (_r)->u.r8 = (_v); \
+    } while (0)
+#define X86_EMU_REG_SET_r16(_r, _v)  \
+    do { \
+        (_r)->known |= 0xffff; \
+        (_r)->u.r16 = (_v); \
+    } while (0)
+#define X86_EMU_REG_SET_r32(_r, _v)   \
+    do { \
+        (_r)->known |= 0xffffffff; \
+        (_r)->u.r32 = (_v); \
+    } while (0)
+
 
 typedef struct x86_emu_reg
 {
@@ -56,6 +74,30 @@ typedef struct x86_emu_reg
 } x86_emu_reg_t;
 
 #endif
+
+
+typedef struct x86_emu_eflags
+{
+    unsigned int cf     : 1;    // carray flag
+    unsigned int bit1   : 1;    // reserved
+    unsigned int pf     : 1;    // parity flag  
+    unsigned int bit3   : 1; 
+    unsigned int af     : 1;    // auxiliary flag
+    unsigned int bit5   : 1;    
+    unsigned int zf     : 1;    // zero flag
+    unsigned int sf     : 1;    // sign flag
+    unsigned int tf     : 1;    // trap flag
+    unsigned int ief    : 1;    // interrupt enable flag
+    unsigned int df     : 1;    // direction flag
+    unsigned int of     : 1;    // overflow flag
+    unsigned int iopl   : 1;    // I/O privilege level
+    unsigned int nt     : 1;    // nested task
+    unsigned int bit15  : 1;
+    unsigned int rf     : 1;    // resume flag
+    unsigned int vm     : 1;    // virtual-8086 mode 
+    unsigned int ac     : 1;    // alignment check
+    unsigned int vif    : 1;    // virtual interupt flag;
+} x86_emu_eflags_t;
 
 typedef struct x86_emu_operand
 {
@@ -85,29 +127,6 @@ typedef struct x86_emu_operand
     } u;
 } _x86_emu_operand;
 
-typedef struct x86_emu_eflags
-{
-    unsigned int cf     : 1;    // carray flag
-    unsigned int bit1   : 1;    // reserved
-    unsigned int pf     : 1;    // parity flag  
-    unsigned int bit3   : 1; 
-    unsigned int af     : 1;    // auxiliary flag
-    unsigned int bit5   : 1;    
-    unsigned int zf     : 1;    // zero flag
-    unsigned int sf     : 1;    // sign flag
-    unsigned int tf     : 1;    // trap flag
-    unsigned int ief    : 1;    // interrupt enable flag
-    unsigned int df     : 1;    // direction flag
-    unsigned int of     : 1;    // overflow flag
-    unsigned int iopl   : 1;    // I/O privilege level
-    unsigned int nt     : 1;    // nested task
-    unsigned int bit15  : 1;
-    unsigned int rf     : 1;    // resume flag
-    unsigned int vm     : 1;    // virtual-8086 mode 
-    unsigned int ac     : 1;    // alignment check
-    unsigned int vif    : 1;    // virtual interupt flag;
-} x86_emu_eflags_t;
-
 typedef struct x86_emu_mod
 {
     // 不要改变通用寄存器的位置，我在代码里面某些地方把他当成一个数组来处理了
@@ -128,17 +147,26 @@ typedef struct x86_emu_mod
         int top;
     } stack;
 
-    int     oper_size;
+
+    struct {
+        uint8_t     *start;
+        int         len;
+        int         oper_size;
+    } inst;
 } x86_emu_mod_t;
 
 struct x86_emu_mod *x86_emu_create(int word_size);
 int x86_emu_destroy(struct x86_emu_mod *mod);
 
-int x86_emu_run(struct x86_emu_mod *mod, unsigned char *code, int len);
+int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
 
-int x86_emu_push_reg(struct x86_emu_mod *mod, int reg, int val, int siz);
-int x86_emu_push_imm(struct x86_emu_mod *mod, int val, int siz);
+int x86_emu_push_reg(struct x86_emu_mod *mod, int reg_type);
+int x86_emu_push_imm(struct x86_emu_mod *mod, int val);
 int x86_emu_push_eflags(struct x86_emu_mod *mod);
 
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
