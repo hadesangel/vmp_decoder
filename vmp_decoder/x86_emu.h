@@ -157,6 +157,15 @@ typedef struct x86_emu_mod
     } inst;
 } x86_emu_mod_t;
 
+typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
+
+typedef struct x86_emu_on_inst_item
+{
+    uint32_t            type;
+    x86_emu_on_inst     on_inst;
+} x86_emu_on_inst_item_t;
+
+
 struct x86_emu_mod *x86_emu_create(int word_size);
 int x86_emu_destroy(struct x86_emu_mod *mod);
 
