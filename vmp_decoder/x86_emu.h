@@ -162,6 +162,12 @@ typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
 typedef struct x86_emu_on_inst_item
 {
     uint32_t            type;
+    // x86指令集中，有些指令是无法根据第一个字节判断出指令类型的
+    // 需要结合第2个指令，比如
+    // 81 e2 28 02 1e 46        [and edx, 0x461e0228]
+    // 81 f6 a2 70 21 62        [xor esi, 0x622170a2]
+    // 这些指令需要提取modrm，也就是第2个字节中的reg field来做甄别。
+    int                 reg;
     x86_emu_on_inst     on_inst;
 } x86_emu_on_inst_item_t;
 
