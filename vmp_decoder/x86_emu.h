@@ -98,7 +98,28 @@ typedef struct x86_emu_eflags
     unsigned int ac     : 1;    // alignment check
     unsigned int vif    : 1;    // virtual interupt flag;
 
-    uint32_t    known;
+    struct 
+    {
+        unsigned int cf     : 1;    
+        unsigned int bit1   : 1;    
+        unsigned int pf     : 1;    
+        unsigned int bit3   : 1; 
+        unsigned int af     : 1;    
+        unsigned int bit5   : 1;    
+        unsigned int zf     : 1;    
+        unsigned int sf     : 1;    
+        unsigned int tf     : 1;    
+        unsigned int ief    : 1;    
+        unsigned int df     : 1;    
+        unsigned int of     : 1;    
+        unsigned int iopl   : 1;    
+        unsigned int nt     : 1;    
+        unsigned int bit15  : 1;
+        unsigned int rf     : 1;    
+        unsigned int vm     : 1;    
+        unsigned int ac     : 1;    
+        unsigned int vif    : 1;    
+    } known;
 } x86_emu_eflags_t;
 
 typedef enum {
