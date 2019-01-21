@@ -5,6 +5,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "x86_emu.h"
 #include "mbytes.h"
 
@@ -14,6 +15,10 @@ static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur, int op
 
 static int x86_emu_cf_set(struct x86_emu_mod *mod, int v);
 static int x86_emu_cf_get(struct x86_emu_mod *mod);
+static int x86_emu__push_reg(struct x86_emu_mod *mod, int oper_siz1, struct x86_emu_reg *reg);
+static int x86_emu__push_imm8(struct x86_emu_mod *mod, uint8_t imm8);
+static int x86_emu__push_imm16(struct x86_emu_mod *mod, uint8_t imm8);
+static int x86_emu__push_imm32(struct x86_emu_mod *mod, uint8_t imm8);
 
 int x86_emu_add(struct x86_emu_mod *mod, uint8_t *code, int len);
 int x86_emu_lea(struct x86_emu_mod *mod, uint8_t *code, int len);
@@ -144,6 +149,21 @@ int x86_emu_destroy(struct x86_emu_mod *mod)
         free(mod);
     }
 
+    return 0;
+}
+
+int x86_emu_push(struct x86_emu_mod *mod, uint8_t *code, int len)
+{
+    struct x86_emu_reg *reg;
+    switch (code[0])
+    {
+    case 0x52:
+        break;
+        // push ebp
+    case 0x55:
+        reg = x86_emu_reg_get(mod, OPERAND_TYPE_REG_EBP);
+        break;
+    }
     return 0;
 }
 
@@ -721,6 +741,109 @@ static uint32_t x86_emu_reg_val_get(int oper_siz, struct x86_emu_reg *reg)
     return 0;
 }
 
+static int x86_emu__push_reg(struct x86_emu_mod *mod, int oper_siz1, struct x86_emu_reg *reg)
+{
+    int oper_siz = oper_siz1 ? oper_siz1 : mod->inst.oper_size;
+    int top = mod->stack.top;
+    x86_emu_operand_t *oper = NULL;
+
+    if (mod->stack.top >= mod->stack.size)
+    {
+        printf("x86_emu__push_reg() failed when stack overflow()");
+        return -1;
+    }
+
+    oper = &mod->stack.data[mod->stack.top + 1];
+
+    switch (oper_siz/8)
+    {
+    case 1:
+        oper->kind = a_reg8;
+        break;
+
+    case 2:
+        oper->kind = a_reg16;
+        break;
+
+    case 4:
+        oper->kind = a_reg32;
+        break;
+
+    default:
+        assert(0);
+        break;
+    }
+
+    oper->u.reg = *reg;
+
+    mod->stack.top++;
+    return 0;
+}
+
+static int x86_emu__push_imm8(struct x86_emu_mod *mod, uint8_t imm8)
+{
+    x86_emu_operand_t *operand;
+
+    if ((mod->stack.top + 1) >= mod->stack.size)
+    {
+        assert(0);
+    }
+
+    operand = &mod->stack.data[mod->stack.top + 1];
+    operand->kind = a_imm8;
+    operand->u.imm8 = imm8;
+
+    mod->stack.top++;
+
+    return 0;
+}
+
+static int x86_push_imm16(struct x86_emu_mod *mod, uint16_t imm16)
+{
+    x86_emu_operand_t *operand;
+
+    if ((mod->stack.top + 1) >= mod->stack.size)
+    {
+        assert(0);
+    }
+
+    operand = &mod->stack.data[mod->stack.top + 1];
+    operand->kind = a_imm16;
+    operand->u.imm16 = imm16;
+
+    mod->stack.top++;
+    return 0;
+}
+
+static int x86_push_imm32(struct x86_emu_mod *mod, uint16_t imm32)
+{
+    x86_emu_operand_t *operand;
+
+    if ((mod->stack.top + 1) >= mod->stack.size)
+    {
+        assert(0);
+    }
+
+    operand = &mod->stack.data[mod->stack.top + 1];
+    operand->kind = a_imm32;
+    operand->u.imm32 = imm32;
+
+    mod->stack.top++;
+    return 0;
+}
+
+static x86_emu_operand_t *x86_emu__pop(struct x86_emu_mod *mod)
+{
+    if (mod->stack.top < 0)
+    {
+        printf("x86_emu__pop() failed when stack downflow. %s:%d\r\n", __FILE__, __LINE__);
+        return NULL;
+    }
+
+    mod->stack.top--;
+
+    return &mod->stack.data[mod->stack.top+1];
+}
 
 #ifdef __cplusplus
 }

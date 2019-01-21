@@ -101,33 +101,34 @@ typedef struct x86_emu_eflags
     uint32_t    known;
 } x86_emu_eflags_t;
 
+typedef enum {
+    a_imm8,
+    a_imm16,
+    a_imm32,
+    a_imm64,
+    a_immN,
+    a_reg8,
+    a_reg16,
+    a_reg32,
+    a_reg64,
+    a_eflags,
+} x86_emu_operand_type;
+
 typedef struct x86_emu_operand
 {
-    enum
-    {
-        a_imm8,
-        a_imm16,
-        a_imm32,
-        a_imm64,
-        a_immN,
-        a_reg8,
-        a_reg16,
-        a_reg32,
-        a_reg64,
-        a_eflags,
-    } kind;
-
+    x86_emu_operand_type kind;
+    
     union
     {
-        uint8_t     v8;
-        uint16_t   v16;
-        uint32_t   v32;
-        uint64_t   v64;
-        int        vN;
+        uint8_t     imm8;
+        uint16_t    imm16;
+        uint32_t    imm32;
+        uint64_t    imm64;
+        int         vN;
         struct x86_emu_reg reg;
         struct x86_emu_eflags eflags;
     } u;
-} _x86_emu_operand;
+} x86_emu_operand_t;
 
 typedef struct x86_emu_mod
 {
@@ -147,6 +148,7 @@ typedef struct x86_emu_mod
     {
         struct x86_emu_operand  data[1024];
         int top;
+        int size;
     } stack;
 
 
