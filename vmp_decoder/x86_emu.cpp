@@ -419,6 +419,38 @@ int x86_emu_or(struct x86_emu_mod *mod, uint8_t *addr, int len)
     return 0;
 }
 
+
+int x86_emu_alu_add(struct x86_emu_mod *mod, uint32_t dst, uint32_t src)
+{
+    int oper_siz = mod->inst.oper_size;
+
+    int sign_src = src & (1 << (oper_siz - 1)), sign_dst = dst & (1 << (oper_siz - 1)), sign_s;
+
+    uint32_t s = dst + src;
+
+    uint32_t c = (s ^ dst ^ src) & 0x00010000;
+   
+    s = s - c;
+
+    sign_s = (1 << (oper_siz - 1));
+
+    x86_emu_cf_set(mod, c);
+
+    if ((sign_src == sign_dst) && (sign_s != sign_src))
+    {
+        x86_emu_of_set(mod, 1);
+    }
+
+    if (src == dst)
+    {
+        x86_emu_zf_set(mod, 1);
+    }
+
+    x86_emu_sf_set(mod, !!sign_s);
+
+    return 0;
+}
+
 int x86_emu_adc(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     int dst_type, src_type, ret;
