@@ -66,7 +66,10 @@ typedef struct x86_emu_reg
     uint32_t    known;
     union
     {
-        uint8_t     r8;
+        struct  {
+            uint8_t r8l;
+            uint8_t r8h;
+        } _r16;
         uint16_t    r16;
         uint32_t    r32;
         uint64_t    r64;
