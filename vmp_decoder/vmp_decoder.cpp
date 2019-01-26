@@ -68,6 +68,8 @@ extern "C" {
             int counts;
             unsigned char *start[3];
             int size[3];
+
+            int call_counts;
         } vmp_sections;
 
         unsigned char       *vmp_start_addr;
@@ -97,7 +99,7 @@ extern "C" {
             struct vmp_inst_list *prev;
         } node;
 
-        union 
+        union
         {
             struct vmp_cfg_node *call_label;;
             struct vmp_inst_list *true_label;
@@ -111,7 +113,7 @@ extern "C" {
         unsigned char *addr;
         int total_len;
 
-        struct 
+        struct
         {
             struct vmp_inst_seg_list *next;
             struct vmp_inst_seg_list *prev;
@@ -131,21 +133,22 @@ extern "C" {
 
         unsigned char *return_addr;
 
-        struct 
+        struct
         {
             int counts;
             struct vmp_inst_seg_list *list;
         } seg_head;
 
-        struct 
+        struct
         {
             int counts;
             struct vmp_inst_list *list;
         } jmp_head;
 
         struct {
-            int     already_dot_dump;
-        }debug;
+            unsigned already_dot_dump   : 1;
+            unsigned vmp                : 16;
+        } debug;
     } vmp_cfg_node_t;
 
 #define vmp_stack_push(_st, _val)       (_st[++_st##_i] = _val)
@@ -178,7 +181,7 @@ extern "C" {
         //pe_loader_dump(mod->pe_mod);
 
         if (!vmp_start_rva)
-        { 
+        {
             vmp_start_rva = pe_loader_entry_point(mod->pe_mod);
             //printf("Entry Point = 0x%08x\n", vmp_start_rva);
         }
@@ -245,7 +248,7 @@ extern "C" {
     }
 
 #define xed_success(ret)                (ret == XED_ERROR_NONE)
-    
+
     int vmp_xed_disassembly_callback_function(xed_uint64_t address,
         char *sym_buf, xed_uint32_t buf_size, xed_uint64_t *offset, void *ctx)
     {
@@ -300,7 +303,7 @@ extern "C" {
 
         node = (struct vmp_cfg_node *)calloc(1, sizeof (node[0]));
         if (NULL == node)
-        { 
+        {
             printf("vmp_decoder_cfg_node_create() failed with calloc()");
             return NULL;
         }
@@ -309,6 +312,16 @@ extern "C" {
         node->id = addr;
 
         return node;
+    }
+
+    int vmp_cfg_node_update_vmp(struct vmp_cfg_node *node, int vmp)
+    {
+        if (!node->debug.vmp)
+        {
+            node->debug.vmp = vmp;
+            sprintf(node->name, "vmp%d", node->debug.vmp);
+        }
+        return 0;
     }
 
     struct vmp_inst_list *vmp_cfg_node_add_inst(struct vmp_cfg_node *cfg_node, unsigned char *inst_addr, int inst_len)
@@ -334,7 +347,7 @@ extern "C" {
         }
 
         if (i == cfg_node->seg_head.counts)
-        { 
+        {
             seg_list = (struct vmp_inst_seg_list *)calloc(1, sizeof (seg_list[0]));
             if (!seg_list)
             {
@@ -371,7 +384,7 @@ extern "C" {
         struct vmp_inst_seg_list *seg_list;
         //xed_decoded_inst_t xedd;
         //xed_error_enum_t xed_error;
-        //char buf[64]; 
+        //char buf[64];
         char sym1[128], sym2[128];
         int i, j;
 
@@ -381,7 +394,7 @@ extern "C" {
         node->debug.already_dot_dump = 1;
 
         if (!vmp_hlp_get_symbol(decoder->debug.hlp, vmp_sym_addr(decoder, node->id), sym1, sizeof (sym1), NULL))
-        { 
+        {
             sprintf(sym1, "%s", node->name);
         }
         //printf("symname = %s, 0x%p\n", sym1, node->id);
@@ -396,7 +409,7 @@ extern "C" {
 
             xed_error = xed_decode(&xedd, list->addr, list->len);
             if (xed_error != XED_ERROR_NONE)
-            { 
+            {
                 printf("vmp_cfg_node__dump() failed when xed_decode()");
                 return -1;
             }
@@ -411,7 +424,7 @@ extern "C" {
             for (j = 0, list = seg_list->head.list; j < seg_list->head.counts; j++, list = list->node.next)
             {
                 if (list->bm.type == VMP_INST_TYPE_CALL)
-                { 
+                {
                     vmp_cfg_node__dump(decoder, list->u.call_label);
                 }
             }
@@ -422,9 +435,9 @@ extern "C" {
             for (j = 0, list = seg_list->head.list; j < seg_list->head.counts; j++, list = list->node.next)
             {
                 if (list->bm.type == VMP_INST_TYPE_CALL)
-                { 
+                {
                     if (!vmp_hlp_get_symbol(decoder->debug.hlp, vmp_sym_addr(decoder, list->u.call_label->id), sym2, sizeof(sym2), NULL))
-                    { 
+                    {
                         sprintf(sym2, "%s", list->u.call_label->name);
                     }
 
@@ -447,7 +460,7 @@ extern "C" {
 
     int vmp_decoder_run(struct vmp_decoder *decoder)
     {
-        int  num_of_inst = 2000;
+        int  num_of_inst = 2000, inst_in_vmp;
         xed_error_enum_t xed_error;
         xed_decoded_inst_t xedd;
         int decode_len, ok = 0, i, j, is_break;
@@ -464,16 +477,37 @@ extern "C" {
             decoder->dot_graph_output = fopen("1.dot", "w");
         }
 
-        for (i = 0; i < num_of_inst; i++)
+        for (i = 0; i < num_of_inst; i++, inst_in_vmp = 0)
         {
             xed_decoded_inst_zero(&xedd);
             xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
 
-            if (!vmp_start && vmp_addr_in_vmp_section(decoder, decoder->runtime_vaddr))
+            inst_in_vmp = vmp_addr_in_vmp_section(decoder, decoder->runtime_vaddr);
+
+            if (inst_in_vmp)
             {
-                decoder->vmp_start_addr = decoder->runtime_vaddr;
-                decoder->vmp_start_fa = (uint32_t)((DWORD64)decoder->runtime_vaddr - (DWORD64)decoder->pe_mod->image_base);
-                printf("Wooow, we found vmp start address. %s:%d\r\n", __FILE__, __LINE__);
+                if (!vmp_start)
+                {
+                    decoder->vmp_start_addr = decoder->runtime_vaddr;
+                    decoder->vmp_start_fa = (uint32_t)((DWORD64)decoder->runtime_vaddr - (DWORD64)decoder->pe_mod->image_base);
+                    vmp_start = 1;
+                    printf("Wooow, we found vmp start address. %s:%d\r\n", __FILE__, __LINE__);
+                }
+
+                if (!cur_cfg_node->debug.vmp)
+                {
+                    //printf("vmp [%d]\n", decoder->vmp_sections.call_counts);
+                    vmp_cfg_node_update_vmp(cur_cfg_node, ++decoder->vmp_sections.call_counts);
+                    //printf("vmp name[%s]\n", cur_cfg_node->name);
+                }
+            }
+            else
+            {
+                if (vmp_start)
+                {
+                    vmp_start = 0;
+                    printf("Now, we out vmp address. %s:%d\r\n", __FILE__, __LINE__);
+                }
             }
 
             xed_error = xed_decode(&xedd, decoder->runtime_vaddr, 15);
@@ -496,7 +530,7 @@ extern "C" {
                     printf("    ");
                 }
                 for (j = 0; j < decode_len; j++)
-                { 
+                {
                     printf ("%02x ", decoder->runtime_vaddr[j]);
                 }
                 for (j = decode_len; j < 16; j++)
@@ -509,7 +543,7 @@ extern "C" {
             if (!cur_cfg_node)
             {
                 if (NULL == (cur_cfg_node = vmp_cfg_node_create(decoder, decoder->runtime_vaddr)))
-                { 
+                {
                     printf("vmp_decoder_run() failed when vmp_cfg_node_create(). %s:%d\r\n", __FILE__, __LINE__);
                     return NULL;
                 }
@@ -523,7 +557,7 @@ extern "C" {
             cur_inst = vmp_cfg_node_add_inst(cur_cfg_node, decoder->runtime_vaddr, decode_len);
 
             switch (decoder->runtime_vaddr[0])
-            { 
+            {
                     // jz
                 case 0x74:
                     // jnz
@@ -595,7 +629,7 @@ extern "C" {
                         cur_inst->u.call_label = t_cfg_node;
                         cur_cjg_node->return_addr = 0;
                     }
-                    else 
+                    else
                     { // consider as a jump label
                         decoder->runtime_vaddr = new_addr;
                         //goto label_inner_jmp;
@@ -637,7 +671,7 @@ extern "C" {
                     // pop stack, goto older called function
                     cur_cfg_node = vmp_stack_pop(cfg_node_stack);
                     if (NULL == cur_cfg_node)
-                    { 
+                    {
                         printf("vmp_decoder_run() failed with un-expected error, stack downflow \n");
                         return -1;
                     }
@@ -652,7 +686,7 @@ extern "C" {
                     cur_cfg_node = vmp_stack_top(cfg_node_stack);
                     decoder->runtime_vaddr = cur_cfg_node->return_addr;
                     if (!decoder->runtime_vaddr && (vmp_stack_is_empty (cfg_node_stack)))
-                    { 
+                    {
                         printf("****vmp_decoder_run() meet end***");
                         is_end = 1;
                         break;
@@ -680,6 +714,10 @@ extern "C" {
                     break;
 
                 default:
+                    if (inst_in_vmp)
+                    {
+                        x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len);
+                    }
                     decoder->runtime_vaddr += decode_len;
                     break;
             }
@@ -721,7 +759,7 @@ extern "C" {
 
     static struct vmp_inst_list * vmp_find_inst_in_cfg(struct vmp_cfg_node *node, unsigned char *addr)
     {
-        int i, j; 
+        int i, j;
         struct vmp_inst_seg_list *seg_list;
         struct vmp_inst_list *list;
 

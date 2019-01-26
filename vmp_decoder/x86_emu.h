@@ -9,14 +9,14 @@ extern "C" {
 
 #include <stdint.h>
 
-#define OPERAND_TYPE_REG_EAX    1    
-#define OPERAND_TYPE_REG_EBX    2
-#define OPERAND_TYPE_REG_ECX    3    
-#define OPERAND_TYPE_REG_EDX    4    
-#define OPERAND_TYPE_REG_EDI    5    
-#define OPERAND_TYPE_REG_ESI    6    
-#define OPERAND_TYPE_REG_EBP    7    
-#define OPERAND_TYPE_REG_ESP    8    
+#define OPERAND_TYPE_REG_EAX    0
+#define OPERAND_TYPE_REG_ECX    1
+#define OPERAND_TYPE_REG_EDX    2
+#define OPERAND_TYPE_REG_EBX    3
+#define OPERAND_TYPE_REG_ESP    4
+#define OPERAND_TYPE_REG_EBP    5
+#define OPERAND_TYPE_REG_ESI    6
+#define OPERAND_TYPE_REG_EDI    7
 
 #define OPERAND_TYPE_IMM        16
 
@@ -83,10 +83,10 @@ typedef struct x86_emu_eflags
 {
     unsigned int cf     : 1;    // carray flag
     unsigned int bit1   : 1;    // reserved
-    unsigned int pf     : 1;    // parity flag  
-    unsigned int bit3   : 1; 
+    unsigned int pf     : 1;    // parity flag
+    unsigned int bit3   : 1;
     unsigned int af     : 1;    // auxiliary flag
-    unsigned int bit5   : 1;    
+    unsigned int bit5   : 1;
     unsigned int zf     : 1;    // zero flag
     unsigned int sf     : 1;    // sign flag
     unsigned int tf     : 1;    // trap flag
@@ -97,31 +97,31 @@ typedef struct x86_emu_eflags
     unsigned int nt     : 1;    // nested task
     unsigned int bit15  : 1;
     unsigned int rf     : 1;    // resume flag
-    unsigned int vm     : 1;    // virtual-8086 mode 
+    unsigned int vm     : 1;    // virtual-8086 mode
     unsigned int ac     : 1;    // alignment check
     unsigned int vif    : 1;    // virtual interupt flag;
 
-    struct 
+    struct
     {
-        unsigned int cf     : 1;    
-        unsigned int bit1   : 1;    
-        unsigned int pf     : 1;    
-        unsigned int bit3   : 1; 
-        unsigned int af     : 1;    
-        unsigned int bit5   : 1;    
-        unsigned int zf     : 1;    
-        unsigned int sf     : 1;    
-        unsigned int tf     : 1;    
-        unsigned int ief    : 1;    
-        unsigned int df     : 1;    
-        unsigned int of     : 1;    
-        unsigned int iopl   : 1;    
-        unsigned int nt     : 1;    
+        unsigned int cf     : 1;
+        unsigned int bit1   : 1;
+        unsigned int pf     : 1;
+        unsigned int bit3   : 1;
+        unsigned int af     : 1;
+        unsigned int bit5   : 1;
+        unsigned int zf     : 1;
+        unsigned int sf     : 1;
+        unsigned int tf     : 1;
+        unsigned int ief    : 1;
+        unsigned int df     : 1;
+        unsigned int of     : 1;
+        unsigned int iopl   : 1;
+        unsigned int nt     : 1;
         unsigned int bit15  : 1;
-        unsigned int rf     : 1;    
-        unsigned int vm     : 1;    
-        unsigned int ac     : 1;    
-        unsigned int vif    : 1;    
+        unsigned int rf     : 1;
+        unsigned int vm     : 1;
+        unsigned int ac     : 1;
+        unsigned int vif    : 1;
     } known;
 } x86_emu_eflags_t;
 
@@ -141,7 +141,7 @@ typedef enum {
 typedef struct x86_emu_operand
 {
     x86_emu_operand_type kind;
-    
+
     union
     {
         uint8_t     imm8;
@@ -158,17 +158,17 @@ typedef struct x86_emu_mod
 {
     // 不要改变通用寄存器的位置，我在代码里面某些地方把他当成一个数组来处理了
     struct x86_emu_reg eax;
-    struct x86_emu_reg ebx;
     struct x86_emu_reg ecx;
     struct x86_emu_reg edx;
-    struct x86_emu_reg edi;
-    struct x86_emu_reg esi;
-    struct x86_emu_reg ebp;
+    struct x86_emu_reg ebx;
     struct x86_emu_reg esp;
+    struct x86_emu_reg ebp;
+    struct x86_emu_reg esi;
+    struct x86_emu_reg edi;
 
     x86_emu_eflags_t    eflags;
 
-    struct 
+    struct
     {
         struct x86_emu_operand  data[1024];
         int top;
