@@ -567,7 +567,7 @@ int x86_emu_lea(struct x86_emu_mod *mod, uint8_t *code, int len)
     {
     case 0x8d:
         x86_emu_modrm_analysis2(mod, code + 1, 0, &dst_type, &src_type, &src_imm);
-        dst_reg = x86_emu_reg_get(mod, dst_type);
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
         X86_EMU_REG_SET_r32(dst_reg, src_imm.u.r32);
 
         break;
