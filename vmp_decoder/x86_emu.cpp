@@ -587,16 +587,14 @@ int x86_emu_btc(struct x86_emu_mod *mod, uint8_t *code, int len)
 int x86_emu_xor(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     struct x86_emu_reg *src_reg, *dst_reg, src_imm = {0};
-    int dst_type, src_type;
-
-    x86_emu_modrm_analysis2(mod, code + 1, 0, &dst_type, &src_type, &src_imm);
-    dst_reg = x86_emu_reg_get(mod, dst_type);
-    src_reg = x86_emu_reg_get(mod, src_type);
 
     switch (code[0])
     {
     case 0x33:
-        if (src_type == dst_type)
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+
+        if (MODRM_GET_REG(code[1]) == MODRM_GET_RM(code[1]))
             x86_emu_dynam_set(dst_reg, 0);
         else
             x86_emu_dynam_oper(dst_reg, ^= , src_reg);
@@ -604,8 +602,16 @@ int x86_emu_xor(struct x86_emu_mod *mod, uint8_t *code, int len)
         break;
 
     case 0x81:
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+        src_imm.known = 0xffffffff;
+        src_imm.u.r32 = (mod->inst.oper_size == 32) ? mbytes_read_int_little_endian_4b(code + 2)
+            :mbytes_read_int_little_endian_2b (code + 2);
+
         x86_emu_dynam_oper(dst_reg, ^=, &src_imm);
         break;
+
+    default:
+        return -1;
     }
 
     return 0;
