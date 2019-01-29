@@ -556,6 +556,11 @@ extern "C" {
             //printf("stack  height = %d\n", cfg_node_stack_i + 1);
             cur_inst = vmp_cfg_node_add_inst(cur_cfg_node, decoder->runtime_vaddr, decode_len);
 
+            if (inst_in_vmp)
+            {
+                x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len);
+            }
+
             switch (decoder->runtime_vaddr[0])
             {
                     // jz
@@ -714,10 +719,6 @@ extern "C" {
                     break;
 
                 default:
-                    if (inst_in_vmp)
-                    {
-                        x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len);
-                    }
                     decoder->runtime_vaddr += decode_len;
                     break;
             }

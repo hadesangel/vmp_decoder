@@ -260,3 +260,4 @@ paket-files/
 __pycache__/
 *.pyc
 /vmp_decoder/tags
+/test_data/vmp_test1.vmp.i64

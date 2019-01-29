@@ -56,17 +56,18 @@ typedef struct x86_emu_reg
 #define X86_EMU_REG_SET_r32(_r, _v)   \
     do { \
         (_r)->known |= 0xffffffff; \
-        (_r)->u.r32 = (_v); \
+        (_r)->u.r32 = (uint32_t)(_v); \
     } while (0)
 
 
 typedef struct x86_emu_reg
 {
     uint32_t    type;
+    // 本来这里应该是64位的，但是64位很多地方我都没想清楚，所以先继续使用32位了
     uint32_t    known;
     union
     {
-        struct  {
+        struct {
             uint8_t r8l;
             uint8_t r8h;
         } _r16;
@@ -131,6 +132,12 @@ typedef enum {
     a_eflags,
 } x86_emu_operand_type;
 
+typedef struct x86_emu_mem
+{
+    uint64_t    known;
+    uint64_t    addr64;
+} _x86_emu_mem;
+
 typedef struct x86_emu_operand
 {
     x86_emu_operand_type kind;
@@ -141,7 +148,7 @@ typedef struct x86_emu_operand
         uint16_t    imm16;
         uint32_t    imm32;
         uint64_t    imm64;
-        uint32_t    mem;
+        struct x86_emu_mem mem;
         int         vN;
         struct x86_emu_reg reg;
         struct x86_emu_eflags eflags;
@@ -162,6 +169,9 @@ typedef struct x86_emu_mod
 
     x86_emu_eflags_t eflags;
 
+    // 判断机器的字长，32位系统就是32，64位就是64
+    int                 word_size;
+
     struct
     {
         uint8_t *known;
@@ -169,7 +179,6 @@ typedef struct x86_emu_mod
         int top;
         int size;
     } stack;
-
 
     struct {
         uint8_t     *start;
