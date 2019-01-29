@@ -78,51 +78,43 @@ typedef struct x86_emu_reg
 
 #endif
 
+// XE == x86 emulator
+#define XE_EFLAGS_CF         (1 << 0)    // carray flag
+#define XE_EFLAGS_B1         (1 << 1)    // reserved
+#define XE_EFLAGS_PF         (1 << 2)    // parity flag
+#define XE_EFLAGS_B3         (1 << 3)
+#define XE_EFLAGS_AF         (1 << 4)    // auxiliary flag
+#define XE_EFLAGS_B5         (1 << 5)
+#define XE_EFLAGS_ZF         (1 << 6)    // zero flag
+#define XE_EFLAGS_SF         (1 << 7)    // sign flag
+#define XE_EFLAGS_TF         (1 << 8)    // trap flag
+#define XE_EFLAGS_IEF        (1 << 9)    // interrupt enable flag
+#define XE_EFLAGS_DF         (1 << 10)   // direction flag
+#define XE_EFLAGS_OF         (1 << 11)   // overflow flag
+#define XE_EFLAGS_IOPL       (1 << 12)   // I/O privilege level
+#define XE_EFLAGS_NT         (1 << 13)   // nested task
+#define XE_EFLAGS_B15        (1 << 14)
+#define XE_EFLAGS_RF         (1 << 15)   // resume flag
+#define XE_EFLAGS_VM         (1 << 16)   // virtual-8086 mode
+#define XE_EFLAGS_AC         (1 << 17)   // alignment check
+#define XE_EFLAGS_VIF        (1 << 18)   // virtual interupt flag;
+
+#define XE_EFLAGS_SET(_eflags, flag, v)  do { \
+        if (v > 0) \
+        { \
+            _eflags.eflags |= flag; \
+        } \
+        else \
+        { \
+            _eflags.eflags &= ~flag; \
+        } \
+        _eflags.known |= flag; \
+    } while (0)
 
 typedef struct x86_emu_eflags
 {
-    unsigned int cf     : 1;    // carray flag
-    unsigned int bit1   : 1;    // reserved
-    unsigned int pf     : 1;    // parity flag
-    unsigned int bit3   : 1;
-    unsigned int af     : 1;    // auxiliary flag
-    unsigned int bit5   : 1;
-    unsigned int zf     : 1;    // zero flag
-    unsigned int sf     : 1;    // sign flag
-    unsigned int tf     : 1;    // trap flag
-    unsigned int ief    : 1;    // interrupt enable flag
-    unsigned int df     : 1;    // direction flag
-    unsigned int of     : 1;    // overflow flag
-    unsigned int iopl   : 1;    // I/O privilege level
-    unsigned int nt     : 1;    // nested task
-    unsigned int bit15  : 1;
-    unsigned int rf     : 1;    // resume flag
-    unsigned int vm     : 1;    // virtual-8086 mode
-    unsigned int ac     : 1;    // alignment check
-    unsigned int vif    : 1;    // virtual interupt flag;
-
-    struct
-    {
-        unsigned int cf     : 1;
-        unsigned int bit1   : 1;
-        unsigned int pf     : 1;
-        unsigned int bit3   : 1;
-        unsigned int af     : 1;
-        unsigned int bit5   : 1;
-        unsigned int zf     : 1;
-        unsigned int sf     : 1;
-        unsigned int tf     : 1;
-        unsigned int ief    : 1;
-        unsigned int df     : 1;
-        unsigned int of     : 1;
-        unsigned int iopl   : 1;
-        unsigned int nt     : 1;
-        unsigned int bit15  : 1;
-        unsigned int rf     : 1;
-        unsigned int vm     : 1;
-        unsigned int ac     : 1;
-        unsigned int vif    : 1;
-    } known;
+    uint32_t eflags;
+    uint32_t known;
 } x86_emu_eflags_t;
 
 typedef enum {
@@ -131,6 +123,7 @@ typedef enum {
     a_imm32,
     a_imm64,
     a_immN,
+    a_mem,
     a_reg8,
     a_reg16,
     a_reg32,
@@ -148,6 +141,7 @@ typedef struct x86_emu_operand
         uint16_t    imm16;
         uint32_t    imm32;
         uint64_t    imm64;
+        uint32_t    mem;
         int         vN;
         struct x86_emu_reg reg;
         struct x86_emu_eflags eflags;
@@ -166,11 +160,12 @@ typedef struct x86_emu_mod
     struct x86_emu_reg esi;
     struct x86_emu_reg edi;
 
-    x86_emu_eflags_t    eflags;
+    x86_emu_eflags_t eflags;
 
     struct
     {
-        struct x86_emu_operand  data[1024];
+        uint8_t *known;
+        uint8_t *data;
         int top;
         int size;
     } stack;
@@ -197,6 +192,16 @@ typedef struct x86_emu_on_inst_item
     x86_emu_on_inst     on_inst;
 } x86_emu_on_inst_item_t;
 
+#define XE_DWORD_P_LOW(v32)             (v32 & 0x000000ff)
+#define XE_DWORD_P_HIG(v32)             (v32 & 0x0000ff00)
+#define XE_DWORD_B1(v32)                (v32 & 0x000000ff)
+#define XE_DWORD_B2(v32)                (v32 & 0x0000ff00)
+#define XE_DWORD_B3(v32)                (v32 & 0x00ff0000)
+#define XE_DWORD_B4(v32)                (v32 & 0xff000000)
+
+#define XE_DWORD_W1(v32)                (v32 & 0x0000ffff)
+#define XE_DWORD_W2(v32)                (v32 & 0xffff0000)
+
 
 struct x86_emu_mod *x86_emu_create(int word_size);
 int x86_emu_destroy(struct x86_emu_mod *mod);
@@ -206,7 +211,6 @@ int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
 int x86_emu_push_reg(struct x86_emu_mod *mod, int reg_type);
 int x86_emu_push_imm(struct x86_emu_mod *mod, int val);
 int x86_emu_push_eflags(struct x86_emu_mod *mod);
-
 
 #endif
 
