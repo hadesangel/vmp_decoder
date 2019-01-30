@@ -3,10 +3,12 @@
 extern "C" {
 #endif
 
+
 #include "pe_loader.h"
 #include <DbgHelp.h>
 #include <winnt.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "mbytes.h"
 
 #pragma comment(lib, "dbghelp.lib")
@@ -250,7 +252,8 @@ extern "C" {
         PIMAGE_OPTIONAL_HEADER32 popt_header = NULL;
         PIMAGE_OPTIONAL_HEADER64 popt_header64 = NULL;
         PIMAGE_SECTION_HEADER psec_header;
-        DWORD              va;
+        PIMAGE_DATA_DIRECTORY pimg_dd;
+        DWORD              va, rfa;
         int i;
 
         pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
@@ -316,6 +319,32 @@ extern "C" {
             printf("%8s, %08x, %08x, %08x, %08x\n", 
                 psec_header[i].Name, psec_header[i].VirtualAddress, psec_header[i].Misc.VirtualSize,
                 psec_header[i].PointerToRawData, psec_header[i].SizeOfRawData);
+        }
+
+        pimg_dd = &popt_header->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+        va = pimg_dd->VirtualAddress;
+        rfa = pe_loader_rva2rfa(mod, va);
+        if (rfa)
+        {
+            printf("dump reloc table\n");
+            PIMAGE_BASE_RELOCATION pimg_br;
+            PWORD tab;
+            int counts;
+
+            pimg_br = (PIMAGE_BASE_RELOCATION)((uint8_t *)mod->image_base + rfa);
+            tab = (PWORD)(pimg_br + sizeof(pimg_br[0]));
+            counts = (pimg_br->SizeOfBlock - 8)/2;
+
+            for (i = 0; i < counts; i++)
+            {
+                printf("%04x, ", tab[i]);
+
+                if ((i + 1) % 8 == 0)
+                {
+                    printf("\n");
+                }
+            }
+            printf("\n");
         }
     }
 

@@ -161,7 +161,7 @@ extern "C" {
     static struct vmp_inst_list * vmp_find_inst_in_cfg(struct vmp_cfg_node *node, unsigned char *addr);
 #define vmp_sym_addr(_decoder, _address)  (UINT64)(pe_loader_fa2rva(_decoder->pe_mod, (DWORD64)_address))
 
-    struct vmp_decoder *vmp_decoder_create(char *filename, DWORD vmp_start_rva)
+    struct vmp_decoder *vmp_decoder_create(char *filename, DWORD vmp_start_rva, int dump_pe)
     {
         struct vmp_decoder *mod = (struct vmp_decoder *)calloc(1, sizeof(mod[0]));
 
@@ -178,7 +178,10 @@ extern "C" {
             goto fail_label;
         }
 
-        //pe_loader_dump(mod->pe_mod);
+        if (dump_pe)
+        {
+            pe_loader_dump(mod->pe_mod);
+        }
 
         if (!vmp_start_rva)
         {
