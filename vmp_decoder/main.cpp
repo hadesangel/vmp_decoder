@@ -61,7 +61,7 @@ extern "C" {
             return 0;
         }
 
-        vmp_decoder1 = vmp_decoder_create(argv[1], 0, cmd_mod.dump_pe);
+        vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, 0, cmd_mod.dump_pe);
         if (NULL == vmp_decoder1)
         {
             printf("main() failed with vmp_decoder_create(). %s:%d\n", __FILE__, __LINE__);

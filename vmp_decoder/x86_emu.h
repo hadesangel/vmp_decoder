@@ -8,6 +8,7 @@ extern "C" {
 #define __x86_emu_h__
 
 #include <stdint.h>
+#include "pe_loader.h"
 
 #define OPERAND_TYPE_REG_EAX    0
 #define OPERAND_TYPE_REG_ECX    1
@@ -134,8 +135,8 @@ typedef enum {
 
 typedef struct x86_emu_mem
 {
-    uint64_t    known;
-    uint64_t    addr64;
+    uint32_t    known;
+    uint32_t    addr32;
 } _x86_emu_mem;
 
 typedef struct x86_emu_operand
@@ -185,6 +186,10 @@ typedef struct x86_emu_mod
         int         len;
         int         oper_size;
     } inst;
+
+    struct pe_loader *pe_mod;
+
+    uint64_t        addr64_prefix;
 } x86_emu_mod_t;
 
 typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
@@ -212,7 +217,13 @@ typedef struct x86_emu_on_inst_item
 #define XE_DWORD_W2(v32)                (v32 & 0xffff0000)
 
 
-struct x86_emu_mod *x86_emu_create(int word_size);
+struct x86_emu_create_param
+{
+    int word_size;
+    struct pe_loader *pe_mod;
+};
+
+struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param);
 int x86_emu_destroy(struct x86_emu_mod *mod);
 
 int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);

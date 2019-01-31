@@ -261,3 +261,9 @@ __pycache__/
 *.pyc
 /vmp_decoder/tags
 /test_data/vmp_test1.vmp.i64
+/test_data/vmp_test1.vmp.exe.bak
+/test_data/vmp_test1.vmp.id1
+/test_data/vmp_test1.vmp.id0
+/test_data/vmp_test1.vmp.id2
+/test_data/vmp_test1.vmp.til
+/test_data/vmp_test1.vmp.nam

@@ -164,6 +164,7 @@ extern "C" {
     struct vmp_decoder *vmp_decoder_create(char *filename, DWORD vmp_start_rva, int dump_pe)
     {
         struct vmp_decoder *mod = (struct vmp_decoder *)calloc(1, sizeof(mod[0]));
+        char bak_filename[128];
 
         if (!mod)
         {
@@ -171,16 +172,24 @@ extern "C" {
             return NULL;
         }
 
-        mod->pe_mod = pe_loader_create(filename);
+        // 因为我们需要对去壳的vmp做地址的重映射工作，所以我们把文件从硬盘映射到内存不能是
+        // 只读的，但是假如改成读写方式来映射，那么我在修改了重定位表后，也会同时修改文件
+        // 所以我这里对命令输入的文件做了一个备份，然后修改这个备份的文件即可。
+        sprintf(bak_filename, "%s.bak", filename);
+        CopyFile(filename, bak_filename, FALSE);
+
+        mod->pe_mod = pe_loader_create(bak_filename);
         if (NULL == mod->pe_mod)
         {
             printf("vmp_decoder_create() failed with pe_loader_create(). %s:%d\n", __FILE__, __LINE__);
             goto fail_label;
         }
+        pe_loader_fix_reloc(mod->pe_mod, 1);
 
         if (dump_pe)
         {
             pe_loader_dump(mod->pe_mod);
+            return 0;
         }
 
         if (!vmp_start_rva)
@@ -225,7 +234,11 @@ extern "C" {
             goto fail_label;
         }
 
-        mod->emu = x86_emu_create(32);
+        struct x86_emu_create_param param;
+
+        param.pe_mod = mod->pe_mod;
+
+        mod->emu = x86_emu_create(&param);
 
         return mod;
 

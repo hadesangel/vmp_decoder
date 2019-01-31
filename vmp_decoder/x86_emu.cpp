@@ -55,6 +55,12 @@ int x86_emu_clc(struct x86_emu_mod *mod, uint8_t *code, int len);
 
 static uint32_t x86_emu_reg_val_get(int oper_siz, struct x86_emu_reg *reg);
 
+/* 在CPU模拟器的内部，所有的内存访问，都需要做一层模拟器内存到真实地址的映射才行。
+ * 做的转换有以下几种：
+ * 1. 32位地址到64位地址的转换
+ * 2. PE文件内部 相对文件地址 到 rva 的转换 */
+static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t addr);
+
 #define X86_EMU_REG_IS_KNOWN(_op_siz, _reg)                 (((_op_siz == 32) && ((_reg)->known == 0xffffffff)) || ((_op_siz == 16) && ((_reg)->known == 0xffff)))
 #define X86_EMU_REG_H8_IS_KNOWN(_reg)                       ((_reg)->known & 0x0000ff00)
 #define X86_EMU_REG_BIT_IS_KNOWN(_op_siz, _reg, _bit_pos)   ((_reg)->known & (1 << (_bit_pos % _op_siz)))
@@ -197,7 +203,7 @@ static uint32_t x86_emu_reg_val_get(int oper_siz, struct x86_emu_reg *reg);
 
 #define counts_of_array(_a)         (sizeof (_a) / sizeof (_a[0]))
 
-struct x86_emu_mod *x86_emu_create(int word_size)
+struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
 {
     struct x86_emu_mod *mod;
 
@@ -207,6 +213,8 @@ struct x86_emu_mod *x86_emu_create(int word_size)
         printf("x86_emu_create() failed when calloc(). %s:%d", __FILE__, __LINE__);
         return NULL;
     }
+
+    mod->pe_mod = param->pe_mod;
 
     mod->eax.type = OPERAND_TYPE_REG_EAX;
     mod->ebx.type = OPERAND_TYPE_REG_EBX;
@@ -232,9 +240,13 @@ struct x86_emu_mod *x86_emu_create(int word_size)
 
     // esp寄存器比较特别，理论上所有的寄存器开始时都是unknown状态的
     // 但是因为我们实际在操作堆栈时，依赖于esp，所以假设一开始esp
-    // 有值
-    mod->esp.u.r32 = mod->stack.top;
+    // 有值。另外看起来一些比较小的程序，虽然用64位编译，但是他们的
+    // 高32位都是一样的，所以我们这里直接把高32位揭掉，只有在需要访问
+    // 内存的时候，才把这个值加上去，具体可以看x86_emu_access_mem
+    mod->esp.u.r32 = (uint32_t)((uint64_t)mod->stack.data & UINT_MAX) + mod->stack.top;
     mod->esp.known = UINT_MAX;
+
+    mod->addr64_prefix = (uint64_t)mod->stack.data & 0xffffffff00000000;
 
     if (!mod->stack.data || !mod->stack.known)
     {
@@ -324,7 +336,7 @@ int x86_emu_push_imm(struct x86_emu_mod *mod, int val)
 
 static int x86_emu__push(struct x86_emu_mod *mod, uint8_t *known, uint8_t *data, int len)
 {
-    int top = (int32_t)mod->esp.u.r32;
+    int top = mod->esp.u.r32 - (uint32_t)((uint64_t)mod->stack.data & UINT_MAX);
 
     if ((top - len) < 0)
     {
@@ -646,7 +658,7 @@ int x86_emu_lea(struct x86_emu_mod *mod, uint8_t *code, int len)
     case 0x8d:
         x86_emu_modrm_analysis2(mod, code + 1, 0, NULL, NULL, &src_imm);
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
-        X86_EMU_REG_SET_r32(dst_reg, src_imm.u.mem.addr64);
+        X86_EMU_REG_SET_r32(dst_reg, src_imm.u.mem.addr32);
         break;
 
     default:
@@ -682,8 +694,9 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
         if (src_imm.kind == a_mem)
         {
             if (src_imm.u.mem.known & UINT_MAX)
-            { 
-                x86_emu_dynam_imm_set(dst_reg, mod->stack.data + src_imm.u.mem.addr64);
+            {
+                uint8_t *new_addr = x86_emu_access_mem(mod, src_imm.u.mem.addr32);
+                x86_emu_dynam_imm_set(dst_reg, new_addr);
             }
         }
         else
@@ -705,14 +718,14 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
 
 int x86_emu_add(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
-    int dst_type = 0, src_type = 0;
+    int dst_type = 0, src_type = 0, rm;
     x86_emu_reg_t *dst_reg, *src_reg;
 
     switch (code[0])
     {
     case 0x03:
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
-        src_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
 
         if (X86_EMU_REG_IS_KNOWN (mod->inst.oper_size, dst_reg)
             && X86_EMU_REG_IS_KNOWN (mod->inst.oper_size, src_reg))
@@ -725,12 +738,27 @@ int x86_emu_add(struct x86_emu_mod *mod, uint8_t *code, int len)
 
     case 0x80:
         mod->inst.oper_size = 8;
-        dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+        dst_reg = x86_emu_reg_get(mod, rm = MODRM_GET_RM(code[1]));
         if (X86_EMU_REG_IS_KNOWN(mod->inst.oper_size, dst_reg))
         {
-            x86_emu_add_modify_status(mod, dst_reg->u._r16.r8h, code[2]);
+            if (rm < 4)
+            { 
+                x86_emu_add_modify_status(mod, dst_reg->u._r16.r8l, code[2]);
+            }
+            else
+            { 
+                x86_emu_add_modify_status(mod, dst_reg->u._r16.r8h, code[2]);
+            }
         }
-        dst_reg->u._r16.r8h += code[2];
+
+        if (rm < 4)
+        {
+            dst_reg->u._r16.r8l += code[2];
+        }
+        else
+        { 
+            dst_reg->u._r16.r8h += code[2];
+        }
         break;
 
     default:
@@ -903,10 +931,13 @@ int x86_emu_sub(struct x86_emu_mod *mod, uint8_t *code, int len)
     switch (code[0])
     {
     case 0x2b:
-        dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[0]));
-        src_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[0]));
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
         x86_emu_add_dynam_rr(dst_reg, -=, src_reg, 0);
         break;
+
+    default:
+        return -1;
     }
     return 0;
 }
@@ -1093,8 +1124,12 @@ int x86_emu_cmovnbe(struct x86_emu_mod *mod, uint8_t *code, int len)
             && X86_EMU_EFLAGS_BIT_IS_KNOWN((zf = x86_emu_zf_get(mod)))
             && X86_EMU_REG_IS_KNOWN(mod->inst.oper_size, src_reg))
         {
-            x86_emu_dynam_oper(dst_reg, =, src_reg);
+            x86_emu_dynam_set(dst_reg, src_reg->u.r32);
         }
+        break;
+
+    default:
+        return -1;
     }
     return 0;
 }
@@ -1426,11 +1461,16 @@ static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur,
     switch (mod1)
     {
     case 0:
+        imm.kind = a_mem;
+        imm.u.mem.known = UINT32_MAX;
+
         if (rm1 == 0b101)
         {
-            imm.kind = a_mem;
-            imm.u.mem.known = UINT64_MAX;
-            imm.u.mem.addr64 = mbytes_read_int_little_endian_4b(cur + 1);
+            imm.u.mem.addr32 = mbytes_read_int_little_endian_4b(cur + 1);
+        }
+        else
+        {
+            imm.u.mem.addr32 = rm_reg->u.r32;
         }
         break;
 
@@ -1454,25 +1494,25 @@ static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur,
 
             if (base == 0b101)
             {
-                imm.u.mem.known = base_reg->known & UINT64_MAX;
-                imm.u.mem.addr64 = base_reg->u.r32 + scale + v32;
+                imm.u.mem.known = base_reg->known & UINT32_MAX;
+                imm.u.mem.addr32 = base_reg->u.r32 + scale + v32;
             }
             else
             {
-                imm.u.mem.known = base_reg->known & (index_reg?index_reg->known:UINT64_MAX);
-                imm.u.mem.addr64 = base_reg->u.r32 + (index_reg?index_reg->u.r32:0)*(index^scale) + v32;
+                imm.u.mem.known = base_reg->known & (index_reg?index_reg->known:UINT32_MAX);
+                imm.u.mem.addr32 = base_reg->u.r32 + (index_reg?index_reg->u.r32:0)*(index^scale) + v32;
             }
         }
-        else  if (modrm == 0b11)
+        else  if (mod1 == 0b10)
         {
             v32 = mbytes_read_int_little_endian_4b(cur + 1);
             imm.u.mem.known = UINT_MAX & rm_reg->known;
-            imm.u.mem.addr64 = rm_reg->u.r32 + v32;
+            imm.u.mem.addr32 = rm_reg->u.r32 + v32;
         }
-        else if (modrm == 0b01)
+        else if (mod1 == 0b01)
         {
             imm.u.mem.known = UINT_MAX & rm_reg->known;
-            imm.u.mem.addr64 = rm_reg->u.r32 + cur[1];
+            imm.u.mem.addr32 = rm_reg->u.r32 + cur[1];
         }
         break;
 
@@ -1494,11 +1534,18 @@ static struct x86_emu_reg *x86_emu_reg_get(struct x86_emu_mod *mod, int reg_type
     x86_emu_reg_t *regs = &mod->eax;
     int i;
 
-    for (i = 0; i < 8; i++)
+    if (mod->inst.oper_size == 8)
     {
-        if (regs[i].type == reg_type)
+        return regs + reg_type % 4;
+    }
+    else
+    {
+        for (i = 0; i < 8; i++)
         {
-            return regs + i;
+            if (regs[i].type == reg_type)
+            {
+                return regs + i;
+            }
         }
     }
 
@@ -1653,6 +1700,18 @@ static int x86_emu__push_imm32(struct x86_emu_mod *mod, uint32_t imm32)
 static x86_emu_operand_t *x86_emu__pop(struct x86_emu_mod *mod, int n)
 {
     return NULL;
+}
+
+static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
+{
+    uint8_t *new_addr = (uint8_t *)((uint64_t)va | mod->addr64_prefix);
+    uint8_t *t_addr = NULL;
+
+    // 地址假如在PE文件内，那么我们就把这个虚拟地址转成当前文件地址
+    // 假如不在，那么就是堆栈地址
+    t_addr = pe_loader_va2rfa(mod->pe_mod, new_addr);
+
+    return t_addr?t_addr:new_addr;
 }
 
 #ifdef __cplusplus
