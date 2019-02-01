@@ -450,12 +450,15 @@ int x86_emu_rol(struct x86_emu_mod *mod, uint8_t *code, int len)
 int x86_emu_ror(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     struct x86_emu_reg *reg;
-    int reg_type;
+    int reg_type, cts = -1;
     uint8_t *r = NULL;
 
     switch (code[0])
     { 
     case 0xc1:
+        cts = code[2];
+    case 0xd3:
+        if (cts == -1) cts = X86_EMU_REG_CL(mod);
         reg = x86_emu_reg_get(mod, reg_type = MODRM_GET_RM(code[1]));
         if (mod->inst.oper_size == 32)
         {
@@ -1081,9 +1084,14 @@ int x86_emu_cmp(struct x86_emu_mod *mod, uint8_t *code, int len)
 
     switch (code[0])
     {
+    case 0x3a:
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        src_reg = x86_emu_
+        break;
+
     case 0x3b:
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
-        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[2]));
+        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
         if (X86_EMU_REG_IS_KNOWN(mod->inst.oper_size, dst_reg)
             && X86_EMU_REG_IS_KNOWN(mod->inst.oper_size, src_reg))
         {
@@ -1568,6 +1576,13 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { 0xd0, 2, x86_emu_rcl },
     { 0xd0, 3, x86_emu_rcr },
     { 0xd2, 6, x86_emu_shl },
+    { 0xd3, 0, x86_emu_rol },
+    { 0xd3, 1, x86_emu_ror },
+    { 0xd3, 2, x86_emu_rcl },
+    { 0xd3, 3, x86_emu_rcr },
+    { 0xd3, 4, x86_emu_shl },
+    { 0xd3, 5, x86_emu_shr },
+    { 0xd3, 6, x86_emu_shl },
     { 0xd3, 7, x86_emu_sar },
     { 0xe8, -1, x86_emu_call },
     { 0xe9, -1, x86_emu_jmp },
