@@ -76,6 +76,7 @@ extern "C" {
         } vmp_sections;
 
         unsigned char       *vmp_start_addr;
+        int vmp_ret_counts;
 
 #define VMP_X86_SET_CF_BIT(eflags)          ((eflags & 0x01) = 1)
 
@@ -482,7 +483,7 @@ extern "C" {
         int  num_of_inst = 2000, inst_in_vmp;
         xed_error_enum_t xed_error;
         xed_decoded_inst_t xedd;
-        int decode_len, ok = 0, i, j, is_break;
+        int decode_len, ok = 0, i, j, is_break, ret;
         struct vmp_cfg_node *cfg_node_stack[128];
         int cfg_node_stack_i = -1, is_end = 0, offset, addr;
         struct vmp_cfg_node *cur_cfg_node = NULL, *t_cfg_node;
@@ -577,7 +578,7 @@ extern "C" {
 
             if (inst_in_vmp)
             {
-                x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len);
+                ret = x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len);
             }
 
             switch (decoder->runtime_vaddr[0])
@@ -714,7 +715,7 @@ extern "C" {
                         }
                         else
                         {
-                            printf("\n vmp ret \n");
+                            printf("\n vmp_ret [%d] \n", ++decoder->vmp_ret_counts);
                             decoder->runtime_vaddr = new_addr;
                             break;
                         }
@@ -751,18 +752,23 @@ extern "C" {
                     if (decoder->runtime_vaddr[1] == 0x15)
                     {
                         addr = mbytes_read_int_little_endian_4b(decoder->runtime_vaddr + 2);
-
-                        if (0 == pe_loader_sym_find (decoder->pe_mod, addr, buf, sizeof(buf)))
-                        {
-                            // printf("symbol [%s]\n", buf);
-                        }
                     }
                     else if (decoder->runtime_vaddr[1] == 0x25)
                     {
                         goto label_asm_ret;
                     }
 
-                    decoder->runtime_vaddr += decode_len;
+                    if (inst_in_vmp && (ret == 1))
+                    { 
+                        new_addr = x86_emu_eip(decoder->emu);
+                        assert(new_addr);
+                        decoder->runtime_vaddr = new_addr;
+                    }
+                    else
+                    { 
+                        decoder->runtime_vaddr += decode_len;
+                    }
+
                     break;
 
                 default:

@@ -22,6 +22,10 @@ extern "C" {
 #define OPERAND_TYPE_REG_EIP    0x0f
 #define OPERAND_TYPE_IMM        0x10
 
+#define MODRM_GET_MOD(_c)   ((_c) >> 6)
+#define MODRM_GET_RM(_c)    ((_c) & 7)
+#define MODRM_GET_REG(_c)   (((_c) >> 3) & 7)
+
 #if 0
 
 #define X86_EMU_REG_GET_r8(_r)          ((uint8_t)((_r)->val[0]))
@@ -185,6 +189,8 @@ typedef struct x86_emu_mod
         int size;
     } stack;
 
+    uint8_t             mem[64];
+
     struct {
         uint8_t     *start;
         int         len;
@@ -229,6 +235,11 @@ struct x86_emu_create_param
 
 struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param);
 int x86_emu_destroy(struct x86_emu_mod *mod);
+/*
+@return     -1           failure
+            0           sucess  
+            1           succes, and update eip
+*/
 int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod);
