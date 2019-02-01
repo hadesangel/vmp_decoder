@@ -17,6 +17,9 @@ extern "C" {
 #include "vmp_hlp.h"
 #include "x86_emu.h"
 
+#define print_err   printf
+#define time2s(_a)   ""
+
 
     typedef struct vmp_decoder
     {
@@ -485,7 +488,7 @@ extern "C" {
         struct vmp_cfg_node *cur_cfg_node = NULL, *t_cfg_node;
         struct vmp_inst_list *cur_inst, *t_inst;
         char buf[64];
-        unsigned char *new_addr;
+        uint8_t *new_addr;
         static int vmp_start = 0;
 
         if (!decoder->dot_graph_output)
@@ -670,6 +673,17 @@ extern "C" {
                 case 0xC3:
                     label_asm_ret:
                     // iteration jmp list, check all branch
+                    // VMP加壳过的程序分为两部分，一部分为正常代码，一部分是加壳
+                    // 过的，正常的代码，在函数调用时有比较明显的进入，退出标志
+                    // 进入函数时一般是CALL，退出时是ret，当然这个不是100%正确的
+                    // 而VMP的代码就千奇百怪的多。
+                    // 分析正常的代码的调用流程图时，我是按照广度优先的顺序进行遍历
+                    // 的，在进入程序后，不断的把当前指令添加到控制块内部，碰到条件
+                    // 跳转语句时加入待扫描队列，然后在碰到RET后，弹出待扫描队列。
+                    // 假如这条指令已经被扫描过，即不再处理，假如没扫描过，那么就扫描
+                    // 到这条指令的终点，一般来说终点也该是ret(?)
+                    // vmp的代码ret是随心所欲的，我现在（2019年2月1日）代码假定
+                    // VMP的部分只有一个或者没有真正的ret指令，其余的ret都是当jmp处理
                     is_break = 0;
                     while (cur_cfg_node->jmp_head.list && !is_break)
                     {
@@ -688,6 +702,23 @@ extern "C" {
 
                     if (is_break)
                         break;
+
+                    if (inst_in_vmp)
+                    {
+                        new_addr = x86_emu_eip(decoder->emu);
+                        // 这个地方主要是为了保证程序在ret不能处理的情况下，打印一下，方便调试
+                        // 假如程序一切正常，这个打印应该永远不会打印出来
+                        if (!new_addr)
+                        {
+                            print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
+                        }
+                        else
+                        {
+                            printf("\n vmp ret \n");
+                            decoder->runtime_vaddr = new_addr;
+                            break;
+                        }
+                    }
 
                     // pop stack, goto older called function
                     cur_cfg_node = vmp_stack_pop(cfg_node_stack);

@@ -449,7 +449,7 @@ DWORD pe_loader_fa2rva(struct pe_loader *mod, DWORD64 fa)
     return 0;
 }
 
-uint8_t* pe_loader_va2rfa(struct pe_loader *mod, uint8_t* va)
+uint8_t* pe_loader_va2fa(struct pe_loader *mod, uint8_t* va)
 {
     DWORD rfa = pe_loader_rva2rfa(mod, (DWORD)((uint64_t)va - (uint64_t)mod->image_base));
 

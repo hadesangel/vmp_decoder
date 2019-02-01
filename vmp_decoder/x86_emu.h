@@ -19,7 +19,8 @@ extern "C" {
 #define OPERAND_TYPE_REG_ESI    6
 #define OPERAND_TYPE_REG_EDI    7
 
-#define OPERAND_TYPE_IMM        16
+#define OPERAND_TYPE_REG_EIP    0x0f
+#define OPERAND_TYPE_IMM        0x10
 
 #if 0
 
@@ -168,6 +169,9 @@ typedef struct x86_emu_mod
     struct x86_emu_reg esi;
     struct x86_emu_reg edi;
 
+
+    struct x86_emu_reg eip;
+
     x86_emu_eflags_t eflags;
 
     // 判断机器的字长，32位系统就是32，64位就是64
@@ -225,12 +229,9 @@ struct x86_emu_create_param
 
 struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param);
 int x86_emu_destroy(struct x86_emu_mod *mod);
-
 int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
 
-int x86_emu_push_reg(struct x86_emu_mod *mod, int reg_type);
-int x86_emu_push_imm(struct x86_emu_mod *mod, int val);
-int x86_emu_push_eflags(struct x86_emu_mod *mod);
+uint8_t *x86_emu_eip(struct x86_emu_mod *mod);
 
 #endif
 
