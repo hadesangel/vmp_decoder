@@ -240,6 +240,7 @@ int x86_emu_destroy(struct x86_emu_mod *mod);
             0           sucess  
             1           succes, and update eip
 */
+#define X86_EMU_UPDATE_EIP      1
 int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod);

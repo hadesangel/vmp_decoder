@@ -762,6 +762,7 @@ extern "C" {
                     { 
                         new_addr = x86_emu_eip(decoder->emu);
                         assert(new_addr);
+                        printf("\n vmp_jmp [%d] \n", ++decoder->vmp_ret_counts);
                         decoder->runtime_vaddr = new_addr;
                     }
                     else
