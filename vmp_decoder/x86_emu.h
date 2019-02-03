@@ -195,6 +195,7 @@ typedef struct x86_emu_mod
         uint8_t     *start;
         int         len;
         int         oper_size;
+        int         rep;
     } inst;
 
     struct pe_loader *pe_mod;
@@ -206,13 +207,13 @@ typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
 
 typedef struct x86_emu_on_inst_item
 {
-    uint32_t            type;
+    uint8_t             opcode[3];
     // x86指令集中，有些指令是无法根据第一个字节判断出指令类型的
     // 需要结合第2个指令，比如
     // 81 e2 28 02 1e 46        [and edx, 0x461e0228]
     // 81 f6 a2 70 21 62        [xor esi, 0x622170a2]
     // 这些指令需要提取modrm，也就是第2个字节中的reg field来做甄别。
-    int                 reg;
+    int8_t              reg;
     x86_emu_on_inst     on_inst;
 } x86_emu_on_inst_item_t;
 
@@ -237,7 +238,7 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param);
 int x86_emu_destroy(struct x86_emu_mod *mod);
 /*
 @return     -1           failure
-            0           sucess  
+            0           sucess
             1           succes, and update eip
 */
 #define X86_EMU_UPDATE_EIP      1

@@ -480,7 +480,7 @@ extern "C" {
 
     int vmp_decoder_run(struct vmp_decoder *decoder)
     {
-        int  num_of_inst = 2000, inst_in_vmp;
+        int  num_of_inst = 20000, inst_in_vmp;
         xed_error_enum_t xed_error;
         xed_decoded_inst_t xedd;
         int decode_len, ok = 0, i, j, is_break, ret;
@@ -497,8 +497,9 @@ extern "C" {
             decoder->dot_graph_output = fopen("1.dot", "w");
         }
 
-        for (i = 0; i < num_of_inst; i++, inst_in_vmp = 0)
+        while (!is_end)
         {
+            inst_in_vmp = 0;
             xed_decoded_inst_zero(&xedd);
             xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
 
