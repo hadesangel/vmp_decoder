@@ -761,9 +761,16 @@ extern "C" {
                     if (inst_in_vmp && (ret == 1))
                     { 
                         new_addr = x86_emu_eip(decoder->emu);
+                        if (!new_addr)
+                        { 
+                            print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
+                        }
+                        else
+                        { 
+                            printf("\n vmp_jmp [%d] \n", ++decoder->vmp_ret_counts);
+                            decoder->runtime_vaddr = new_addr;
+                        }
                         assert(new_addr);
-                        printf("\n vmp_jmp [%d] \n", ++decoder->vmp_ret_counts);
-                        decoder->runtime_vaddr = new_addr;
                     }
                     else
                     { 
