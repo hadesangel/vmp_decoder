@@ -241,6 +241,7 @@ extern "C" {
         struct x86_emu_create_param param;
 
         param.pe_mod = mod->pe_mod;
+        param.hlp = mod->debug.hlp;
 
         mod->emu = x86_emu_create(&param);
 
@@ -483,7 +484,7 @@ extern "C" {
         int  num_of_inst = 20000, inst_in_vmp;
         xed_error_enum_t xed_error;
         xed_decoded_inst_t xedd;
-        int decode_len, ok = 0, i, j, is_break, ret;
+        int decode_len, ok = 0, j, is_break, ret;
         struct vmp_cfg_node *cfg_node_stack[128];
         int cfg_node_stack_i = -1, is_end = 0, offset, addr;
         struct vmp_cfg_node *cur_cfg_node = NULL, *t_cfg_node;
@@ -545,7 +546,7 @@ extern "C" {
 
             if (decoder->debug.dump_inst)
             {
-                printf("[%p]", decoder->runtime_vaddr);
+                printf("[%p]\t[%08x]", decoder->runtime_vaddr, 0x400000 + pe_loader_fa2rva(decoder->pe_mod, (uint64_t)decoder->runtime_vaddr));
                 for (j = 0; j < cfg_node_stack_i; j++)
                 {
                     printf("    ");
@@ -554,7 +555,7 @@ extern "C" {
                 {
                     printf ("%02x ", decoder->runtime_vaddr[j]);
                 }
-                for (j = decode_len; j < 16; j++)
+                for (j = decode_len; j < 14; j++)
                 {
                     printf("   ");
                 }

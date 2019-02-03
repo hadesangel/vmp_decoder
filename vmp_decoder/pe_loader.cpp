@@ -26,6 +26,9 @@ extern "C" {
 #define func_format_s   filename
         struct pe_loader *mod = (struct pe_loader *)calloc(1, sizeof(mod[0]));
         PIMAGE_FILE_HEADER pfile_header;
+        PIMAGE_NT_HEADERS32 pnt_headder;
+        PIMAGE_OPTIONAL_HEADER32 popt_header;
+        PIMAGE_DOS_HEADER pdos_header;
 
         if (NULL == mod)
         {
@@ -81,6 +84,15 @@ extern "C" {
         {
             printf("pe_loader() failed with un-support X64 arch. %s:%d\r\n", __FILE__, __LINE__);
         }
+
+
+        pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)mod->image_base + pdos_header->e_lfanew));
+        popt_header = &pnt_headder->OptionalHeader;
+
+        mod->fake_image_base = popt_header->ImageBase;
+
+        //printf("iat addr = 0x%08x, popt_head = 0x%08x\r\n", iat_addr, popt_header->ImageBase);
 
         return mod;
 
@@ -452,6 +464,13 @@ DWORD pe_loader_fa2rva(struct pe_loader *mod, DWORD64 fa)
 uint8_t* pe_loader_va2fa(struct pe_loader *mod, uint8_t* va)
 {
     DWORD rfa = pe_loader_rva2rfa(mod, (DWORD)((uint64_t)va - (uint64_t)mod->image_base));
+
+    return rfa?((uint8_t *)mod->image_base + rfa):NULL;
+}
+
+uint8_t* pe_loader_va2fa2(struct pe_loader *mod, uint32_t va)
+{
+    DWORD rfa = pe_loader_rva2rfa(mod, va - mod->fake_image_base);
 
     return rfa?((uint8_t *)mod->image_base + rfa):NULL;
 }

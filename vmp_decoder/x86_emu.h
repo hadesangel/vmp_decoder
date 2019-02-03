@@ -9,6 +9,7 @@ extern "C" {
 
 #include <stdint.h>
 #include "pe_loader.h"
+#include "vmp_hlp.h"
 
 #define OPERAND_TYPE_REG_EAX    0
 #define OPERAND_TYPE_REG_ECX    1
@@ -187,9 +188,10 @@ typedef struct x86_emu_mod
         uint8_t *data;
         int top;
         int size;
-    } stack;
 
-    uint8_t             mem[64];
+        uint32_t    esp_start;
+        uint32_t    esp_end;
+    } stack;
 
     struct {
         uint8_t     *start;
@@ -198,7 +200,12 @@ typedef struct x86_emu_mod
         int         rep;
     } inst;
 
+    struct {
+        uint8_t         external_call[4];
+    } mem;
+
     struct pe_loader *pe_mod;
+    struct vmp_hlp *hlp;
 
     uint64_t        addr64_prefix;
 } x86_emu_mod_t;
@@ -232,6 +239,7 @@ struct x86_emu_create_param
 {
     int word_size;
     struct pe_loader *pe_mod;
+    struct vmp_hlp *hlp;
 };
 
 struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param);

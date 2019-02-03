@@ -13,6 +13,8 @@ extern "C" {
 #define time2s(_t)                  ""
 #define print_err                   printf
 
+#define X86_EMU_EXTERNAL_CALL       0xb1b1b1b1
+
 #define XE_EFLAGS_BIT_GET(mod1, flag1)    ((mod1->eflags.known & flag1) ? (mod1->eflags.eflags & flag1) : -1)
 #define x86_emu_mem_fix(_va)    (uint8_t *)((uint64_t)(_va) | mod->addr64_prefix)
 
@@ -33,6 +35,7 @@ int x86_emu_stack_top(struct x86_emu_mod *mod);
 static int x86_emu_cf_set(struct x86_emu_mod *mod, uint32_t v);
 static int x86_emu_cf_get(struct x86_emu_mod *mod);
 static int x86_emu_of_set(struct x86_emu_mod *mod, int v);
+static int x86_emu_of_get(struct x86_emu_mod *mod);
 static int x86_emu_sf_set(struct x86_emu_mod *mod, int v);
 static int x86_emu_sf_get(struct x86_emu_mod *mod);
 static int x86_emu_zf_set(struct x86_emu_mod *mod, int v);
@@ -259,6 +262,8 @@ static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t addr);
 struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
 {
     struct x86_emu_mod *mod;
+    struct x86_emu_reg *regs;
+    int i;
 
     mod = (struct x86_emu_mod *)calloc(1, sizeof (mod[0]));
     if (!mod)
@@ -277,6 +282,11 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
     mod->esi.type = OPERAND_TYPE_REG_ESI;
     mod->ebp.type = OPERAND_TYPE_REG_EBP;
     mod->esp.type = OPERAND_TYPE_REG_ESP;
+
+    for (i = 0, regs = &mod->eax; i < 8; i++)
+    {
+        regs[i].known = UINT_MAX;
+    }
 
     mod->word_size = 32;
 
@@ -299,7 +309,14 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
     mod->esp.u.r32 = (uint32_t)((uint64_t)mod->stack.data & UINT_MAX) + mod->stack.top;
     mod->esp.known = UINT_MAX;
 
+    mod->stack.esp_start = (uint32_t)((uint64_t)mod->stack.data & UINT_MAX);
+    mod->stack.esp_end = mod->esp.u.r32 - 1;
+
     mod->addr64_prefix = (uint64_t)mod->stack.data & 0xffffffff00000000;
+
+    *((int *)mod->mem.external_call) = X86_EMU_EXTERNAL_CALL;
+
+    mod->hlp = param->hlp;
 
     if (!mod->stack.data || !mod->stack.known)
     {
@@ -716,9 +733,11 @@ int x86_emu_shl(struct x86_emu_mod *mod, uint8_t *code, int len)
         dst8[0] <<= cts;
         break;
 
+    case 0xd3:
+        if (cts == -1) cts = X86_EMU_REG_CL(mod);
     case 0xc1:
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
-        cts = code[2] & 0x1f;
+        if (cts == -1) cts = code[2] & 0x1f;
 
         if (mod->inst.oper_size == 32)
         {
@@ -861,6 +880,17 @@ int x86_emu_setnz(struct x86_emu_mod *mod, uint8_t *code, int len)
     return 0;
 }
 
+int x86_emu_setp(struct x86_emu_mod *mod, uint8_t *code, int len)
+{
+    uint8_t *dst8;
+    if(x86_emu_pf_get(mod) == 1)
+    { 
+        dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
+        dst8[0] = 1;
+    }
+    return 0;
+}
+
 int x86_emu_bts(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     switch (code[0])
@@ -917,6 +947,18 @@ int x86_emu_xor(struct x86_emu_mod *mod, uint8_t *code, int len)
     case 0x34:
         dst8 = x86_emu_reg8_get_ptr(mod, 0);
         dst8[0] ^= code[1];
+        break;
+
+    case 0x35:
+        dst_reg = &mod->eax;
+        if (mod->inst.oper_size == 32)
+        {
+            dst_reg->u.r32 ^= mbytes_read_int_little_endian_4b(code + 1);
+        }
+        else if (mod->inst.oper_size == 16)
+        {
+            dst_reg->u.r16 ^= mbytes_read_int_little_endian_2b(code + 1);
+        }
         break;
 
     case 0x80:
@@ -988,6 +1030,13 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
         dst8 = x86_emu_reg8_get_ptr(mod, code[0] - 0xb0);
         dst8[0] = code[1];
         dst8 = x86_emu_reg8_get_known_ptr(mod, code[0] - 0xb0);
+        dst8[0] = 0xff;
+        break;
+
+    case 0xc6:
+        dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
+        dst8[0] = code[2];
+        dst8 = x86_emu_reg8_get_known_ptr(mod, MODRM_GET_RM(code[1]));
         dst8[0] = 0xff;
         break;
 
@@ -1260,6 +1309,11 @@ int x86_emu_and(struct x86_emu_mod *mod, uint8_t *code, int len)
         dst8[0] &= code[1];
         break;
 
+    case 0x80:
+        dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
+        dst8[0] &= code[2];
+        break;
+
     case 0x81:
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
         if (mod->inst.oper_size == 32)
@@ -1445,6 +1499,12 @@ int x86_emu_adc(struct x86_emu_mod *mod, uint8_t *code, int len)
             x86_emu_add_dynam_modify_status_rr(dst_reg, src_reg, 0, ret);
             x86_emu_add_dynam_rr(dst_reg, +=, src_reg, ret);
         }
+        break;
+
+    case 0x80:
+        dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
+        x86_emu_add_modify_status(mod, dst8[0], code[2] + x86_emu_cf_get(mod));
+        dst8[0] += code[2] + x86_emu_cf_get(mod);
         break;
 
     case 0x81:
@@ -1771,6 +1831,32 @@ int x86_emu_movzx(struct x86_emu_mod *mod, uint8_t *code, int len)
     return 0;
 }
 
+int x86_emu_cmovo(struct x86_emu_mod *mod, uint8_t *code, int len)
+{
+    struct x86_emu_reg *dst_reg, *src_reg;
+    if (x86_emu_of_get(mod) == 1)
+    {
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+
+        x86_emu_dynam_oper(dst_reg, =, src_reg);
+    }
+    return 0;
+}
+
+int x86_emu_cmovno(struct x86_emu_mod *mod, uint8_t *code, int len)
+{
+    struct x86_emu_reg *dst_reg, *src_reg;
+    if (!x86_emu_of_get(mod))
+    {
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+
+        x86_emu_dynam_oper(dst_reg, =, src_reg);
+    }
+    return 0;
+}
+
 int x86_emu_cmovnbe(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     int cf, zf;
@@ -1936,6 +2022,13 @@ static int x86_emu_jmp(struct x86_emu_mod *mod, uint8_t *code, int len)
         {
             mod->eip.known = UINT_MAX;
             mod->eip.u.r32 = reg->u.r32;
+
+            if (mod->eip.u.r32 == X86_EMU_EXTERNAL_CALL)
+            {
+                mod->eip.u.r32 = mbytes_read_int_little_endian_4b(mod->stack.data + x86_emu_stack_top(mod));
+                mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
+                x86_emu__pop(mod, 4);
+            }
             return X86_EMU_UPDATE_EIP;
         }
         else
@@ -1957,6 +2050,12 @@ static int x86_emu_ret(struct x86_emu_mod *mod, uint8_t *code, int len)
         mod->eip.u.r32 = mbytes_read_int_little_endian_4b(mod->stack.data + x86_emu_stack_top(mod));
         mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
         x86_emu__pop(mod, 4);
+        if (mod->eip.u.r32 == X86_EMU_EXTERNAL_CALL)
+        { 
+            mod->eip.u.r32 = mbytes_read_int_little_endian_4b(mod->stack.data + x86_emu_stack_top(mod));
+            mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
+            x86_emu__pop(mod, 4);
+        }
         break;
 
     default:
@@ -2255,6 +2354,7 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0x32, 0, 0}, -1, x86_emu_xor },
     { {0x33, 0, 0}, -1, x86_emu_xor },
     { {0x34, 0, 0}, -1, x86_emu_xor },
+    { {0x35, 0, 0}, -1, x86_emu_xor },
     { {0x3b, 0, 0}, -1, x86_emu_cmp },
     { {0x3d, 0, 0}, -1, x86_emu_cmp },
     { {0x40, 0, 0}, -1, x86_emu_inc },
@@ -2338,6 +2438,7 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0xc1, 0, 0}, 4, x86_emu_shl },
     { {0xc1, 0, 0}, 5, x86_emu_shr },
     { {0xc1, 0, 0}, 6, x86_emu_shl },
+    { {0xc6, 0, 0}, 0, x86_emu_mov },
     { {0xc3, 0, 0}, -1, x86_emu_ret },
     { {0xd0, 0, 0}, 0, x86_emu_rol },
     { {0xd0, 0, 0}, 1, x86_emu_ror },
@@ -2364,7 +2465,7 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0xd3, 0, 0}, 3, x86_emu_rcr },
     { {0xd3, 0, 0}, 4, x86_emu_shl },
     { {0xd3, 0, 0}, 5, x86_emu_shr },
-    { {0xd3, 0, 0}, 6, x86_emu_shl },
+    //{ {0xd3, 0, 0}, 6, x86_emu_shl },
     { {0xd3, 0, 0}, 7, x86_emu_sar },
     { {0xe8, 0, 0}, -1, x86_emu_call },
     { {0xe9, 0, 0}, -1, x86_emu_jmp },
@@ -2398,12 +2499,15 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0xff, 0, 0}, 6, x86_emu_push },
     { {0xff, 0, 0}, 7, x86_emu_push },
 
+    { {0x0f, 0x40, 0}, -1, x86_emu_cmovo },
+    { {0x0f, 0x41, 0}, -1, x86_emu_cmovno },
     { {0x0f, 0x47, 0}, -1, x86_emu_cmovnbe },
     { {0x0f, 0x48, 0}, -1, x86_emu_cmovs },
     { {0x0f, 0x4a, 0}, -1, x86_emu_cmovp },
     { {0x0f, 0x87, 0}, -1, x86_emu_jnbe },
     { {0x0f, 0x94, 0}, -1, x86_emu_setz },
     { {0x0f, 0x95, 0}, -1, x86_emu_setnz },
+    { {0x0f, 0x9a, 0}, -1, x86_emu_setp },
     { {0x0f, 0xab, 0}, -1, x86_emu_bts },
     { {0x0f, 0xac, 0}, -1, x86_emu_shrd },
     { {0x0f, 0xa3, 0}, -1, x86_emu_bt },
@@ -2427,11 +2531,11 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
 int x86_emu_dump (struct x86_emu_mod *mod)
 {
     printf("EAX[%08x:%08x], EBX[%08x:%08x], ECX[%08x:%08x], EDX[%08x:%08x]\n"
-           "EDI[%08x:%08x], ESI[%08x:%08x], EBP[%08x:%08x], ESP[%08x:%08x]\n",
+           "EDI[%08x:%08x], ESI[%08x:%08x], EBP[%08x:%08x], ESP[%08x:%08x], EIP[%08x]\n",
            mod->eax.known, mod->eax.u.r32, mod->ebx.known, mod->ebx.u.r32,
            mod->ecx.known, mod->ecx.u.r32, mod->edx.known, mod->edx.u.r32,
            mod->edi.known, mod->edi.u.r32, mod->esi.known, mod->esi.u.r32,
-           mod->ebp.known, mod->ebp.u.r32, mod->esp.known, mod->esp.u.r32);
+           mod->ebp.known, mod->ebp.u.r32, mod->esp.known, mod->esp.u.r32, mod->eip.u.r32);
 
     return 0;
 }
@@ -2828,15 +2932,48 @@ static int x86_emu__push_imm32(struct x86_emu_mod *mod, uint32_t imm32)
     return x86_emu__push (mod, (uint8_t *)&known, (uint8_t *)&imm32, sizeof (imm32));
 }
 
+#define FAKE_IMAGE_BASE          0x400000
 
 static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
 {
-    uint8_t *new_addr = (uint8_t *)((uint64_t)va | mod->addr64_prefix);
+    uint8_t *new_addr = NULL;
     uint8_t *t_addr = NULL;
+    char sym_name[128];
+
+    // 在CPU的模拟器内部，暂时有以下几种类型的地址
+    // 1. 堆栈内的地址，访问堆栈时需要使用
+    // 2. PE文件内的地址，jmp时需要
+    // 3. 访问到了IAT地址，比如访问time()，那么这个地址在IAT表内
+
+    // 可能是内部的地址
+    if ((va & 0xffC00000) == FAKE_IMAGE_BASE)
+    {
+        // 假如我们访问到了一个地址，这个地址是IAT的函数调用，那么我们
+        // 直接返回一个模块内的内存地址，当系统调用进入这个函数时，比如
+        // 通过Ret,或者jmp，那么我们检测这个地址是否跟我们模块内这个特殊
+        // 地址一样，假如是的话，我们要额外执行一次ret操作。因为跳转到外部
+        // 的call函数以后，等他执行完了，他需要ret到我们内部的地址上
+        //t_addr = pe_loader_va2fa2(mod->pe_mod, va);
+        if (vmp_hlp_get_symbol(mod->hlp, va - FAKE_IMAGE_BASE, sym_name, sizeof (sym_name), NULL))
+        {
+            printf("find symbol[%s]\n", sym_name);
+        }
+
+        t_addr = mod->mem.external_call;
+    }
+    else if ((va >= mod->stack.esp_start) && (va <= mod->stack.esp_end))
+    {
+        new_addr = (uint8_t *)((uint64_t)va | mod->addr64_prefix);
+    }
+    else
+    { 
+        new_addr = (uint8_t *)((uint64_t)va | mod->addr64_prefix);
+        t_addr = pe_loader_va2fa(mod->pe_mod, new_addr);
+    }
+
 
     // 地址假如在PE文件内，那么我们就把这个虚拟地址转成当前文件地址
     // 假如不在，那么就是堆栈地址
-    t_addr = pe_loader_va2fa(mod->pe_mod, new_addr);
 
     return t_addr?t_addr:new_addr;
 }
@@ -2852,9 +2989,18 @@ int x86_emu_stack_top(struct x86_emu_mod *mod)
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod)
 {
-    uint8_t *new_addr = (mod->eip.known == UINT_MAX) ? (uint8_t *)(mod->addr64_prefix | (uint64_t)mod->eip.u.r32):NULL;
+    uint8_t *new_addr;
 
-    return new_addr ? pe_loader_va2fa(mod->pe_mod, new_addr):NULL;
+    if ((mod->eip.u.r32 & 0xffC00000) == FAKE_IMAGE_BASE)
+    {
+        return pe_loader_va2fa2(mod->pe_mod, mod->eip.u.r32);
+    }
+    else 
+    {
+        new_addr = (mod->eip.known == UINT_MAX) ? (uint8_t *)(mod->addr64_prefix | (uint64_t)mod->eip.u.r32):NULL;
+        return new_addr ? pe_loader_va2fa(mod->pe_mod, new_addr):NULL;
+    }
+
 }
 
 uint8_t *x86_emu_reg8_get_ptr(struct x86_emu_mod *mod, int reg_type)
