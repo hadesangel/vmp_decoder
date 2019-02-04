@@ -713,7 +713,8 @@ extern "C" {
                         // 假如程序一切正常，这个打印应该永远不会打印出来
                         if (!new_addr)
                         {
-                            print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
+                            print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n\n", time2s (0), __FILE__, __LINE__);
+                            exit(0);
                         }
                         else
                         {
@@ -766,6 +767,7 @@ extern "C" {
                         if (!new_addr)
                         { 
                             print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
+                            exit(0);
                         }
                         else
                         { 
@@ -778,7 +780,27 @@ extern "C" {
                     { 
                         decoder->runtime_vaddr += decode_len;
                     }
+                    break;
 
+                case 0x0f:
+                    if (inst_in_vmp && (ret == 1))
+                    { 
+                        new_addr = x86_emu_eip(decoder->emu);
+                        if (!new_addr)
+                        { 
+                            print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
+                        }
+                        else
+                        { 
+                            printf("\n vmp_jmp [%d] \n", ++decoder->vmp_ret_counts);
+                            decoder->runtime_vaddr = new_addr;
+                        }
+                        assert(new_addr);
+                    }
+                    else
+                    {
+                        decoder->runtime_vaddr += decode_len;
+                    }
                     break;
 
                 default:

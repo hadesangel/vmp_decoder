@@ -108,7 +108,7 @@ typedef struct x86_emu_reg
 #define XE_EFLAGS_VIF        (1 << 18)   // virtual interupt flag;
 
 #define XE_EFLAGS_SET(_eflags, flag, v)  do { \
-        if (v > 0) \
+        if (v) \
         { \
             _eflags.eflags |= flag; \
         } \
@@ -198,6 +198,8 @@ typedef struct x86_emu_mod
         int         len;
         int         oper_size;
         int         rep;
+        int         is_fa;
+        int         count;
     } inst;
 
     struct {
