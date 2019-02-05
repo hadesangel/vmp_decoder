@@ -1199,6 +1199,7 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
             if (src_imm.u.mem.known & UINT_MAX)
             {
                 uint8_t *new_addr = x86_emu_access_mem(mod, src_imm.u.mem.addr32);
+                printf("new_addr = %p, addr32= %x\n", new_addr, src_imm.u.mem.addr32);
                 x86_emu_dynam_imm_set(dst_reg, new_addr);
             }
         }
@@ -2877,6 +2878,10 @@ int x86_emu_run(struct x86_emu_mod *mod, uint8_t *addr, int len)
     // groups (Groups 1, 2, 3, 4).
     switch (addr[0])
     {
+        // 修改段寄存器为ss，一般来说不影响，因为默认段寄存器就是ss
+    case 0x36:
+        break;
+
         // operand-size override prefix is encoded using 66H.
         // The operand-size override prefix allows a program to switch between 16- and 32- bit operand size.
     case 0x66:
@@ -3030,7 +3035,8 @@ X86_EMU_SIB_LABEL:
             else
             {
                 imm.u.mem.known = base_reg->known & (index_reg?index_reg->known:UINT32_MAX);
-                imm.u.mem.addr32 = base_reg->u.r32 + (index_reg?index_reg->u.r32:0)*(index^scale) + v32;
+                //imm.u.mem.addr32 = base_reg->u.r32 + (index_reg?index_reg->u.r32:0)*(index^scale) + v32;
+                imm.u.mem.addr32 = base_reg->u.r32 + (index_reg?index_reg->u.r32:0)*(1 << scale) + v32;
             }
         }
         else  if (mod1 == 0b10)
@@ -3282,6 +3288,11 @@ static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
 
         t_addr = mod->mem.external_call;
     }
+    // FIXME
+    else if ((va & 0xffff) == 0x20bc)
+    { 
+        t_addr = mod->mem.external_call;
+    }
     else if ((va >= mod->stack.esp_start) && (va <= mod->stack.esp_end))
     {
         new_addr = (uint8_t *)((uint64_t)va | mod->addr64_prefix);
@@ -3318,7 +3329,7 @@ uint8_t *x86_emu_eip(struct x86_emu_mod *mod)
     }
     else 
     {
-        new_addr = (mod->eip.known == UINT_MAX) ? (uint8_t *)(mod->addr64_prefix | (uint64_t)mod->eip.u.r32):NULL;
+        new_addr = (uint8_t *)(mod->addr64_prefix | (uint64_t)mod->eip.u.r32);
         if (mod->inst.is_fa)
             return new_addr;
 

@@ -626,6 +626,11 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
     return 0;
 }
 
+int pe_loader_inst_in_vmp_section(struct pe_loader *mod, uint8_t *addr)
+{
+    return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif
