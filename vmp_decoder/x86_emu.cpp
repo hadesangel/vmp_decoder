@@ -2366,7 +2366,7 @@ static int x86_emu_cbw(struct x86_emu_mod *mod, uint8_t *code, int len)
 
 static int x86_emu_xchg(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
-    struct x86_emu_reg *dst_reg, *src_reg;
+    struct x86_emu_reg *dst_reg = NULL, *src_reg = NULL;
     uint8_t *dst8, *src8;
     switch (code[0])
     {
@@ -2380,8 +2380,23 @@ static int x86_emu_xchg(struct x86_emu_mod *mod, uint8_t *code, int len)
         break;
 
     case 0x87:
-        dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
-        src_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+        if (!src_reg)
+        {
+            src_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
+            dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+        }
+    case 0x91:
+    case 0x92:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+    case 0x96:
+    case 0x97:
+        if (!src_reg)
+        {
+            src_reg = &mod->eax;
+            dst_reg = x86_emu_reg_get(mod, code[0] - 0x90);
+        }
         if (mod->inst.oper_size == 32)
         {
             uint32_t t = dst_reg->u.r32;
@@ -2714,7 +2729,17 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0x87, 0, 0}, -1, x86_emu_xchg },
     { {0x88, 0, 0}, -1, x86_emu_mov },
     { {0x89, 0, 0}, -1, x86_emu_mov },
+    // xchg的指令格式其中一个是 90 + rw，因为xchg eax, eax，
+    // 是不做任何改动，所以逻辑上来说 xchg eax, eax == nop
     { {0x90, 0, 0}, -1, x86_emu_nop },
+    { {0x91, 0, 0}, -1, x86_emu_xchg },
+    { {0x92, 0, 0}, -1, x86_emu_xchg },
+    { {0x93, 0, 0}, -1, x86_emu_xchg },
+    { {0x94, 0, 0}, -1, x86_emu_xchg },
+    { {0x95, 0, 0}, -1, x86_emu_xchg },
+    { {0x96, 0, 0}, -1, x86_emu_xchg },
+    { {0x97, 0, 0}, -1, x86_emu_xchg },
+    { {0x91, 0, 0}, -1, x86_emu_nop },
     { {0x8a, 0, 0}, -1, x86_emu_mov },
     { {0x8b, 0, 0}, -1, x86_emu_mov },
     { {0x8d, 0, 0}, -1, x86_emu_lea },
