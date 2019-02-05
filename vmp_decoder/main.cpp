@@ -61,6 +61,9 @@ extern "C" {
             return 0;
         }
 
+        // 
+        //setbuf(stdout, NULL);
+
         vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, 0, cmd_mod.dump_pe);
         if (NULL == vmp_decoder1)
         {

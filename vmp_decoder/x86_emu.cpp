@@ -2003,10 +2003,23 @@ int x86_emu_movzx(struct x86_emu_mod *mod, uint8_t *code, int len)
 
     case 0xb7:
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
-        src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
 
-        dst_reg->u.r32 = src_reg->u.r16;
-        dst_reg->known = 0xffffffff;
+        x86_emu_modrm_analysis2(mod, code + 1, 0, NULL, NULL, &src_imm);
+        if (src_imm.kind == a_mem)
+        {
+            if (src_imm.u.mem.known == UINT_MAX)
+            {
+                uint8_t *new_addr = x86_emu_access_mem(mod, src_imm.u.mem.addr32);
+                dst_reg->u.r32 = mbytes_read_int_little_endian_2b(new_addr);
+            }
+        }
+        else
+        {
+            src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+
+            dst_reg->u.r32 = src_reg->u.r16;
+            dst_reg->known = 0xffffffff;
+        }
 
         break;
 
