@@ -1124,6 +1124,18 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
         dst8[0] = 0xff;
         break;
 
+    case 0xb8:
+    case 0xb9:
+    case 0xba:
+    case 0xbb:
+    case 0xbc:
+    case 0xbd:
+    case 0xbe:
+    case 0xbf:
+        dst_reg = x86_emu_reg_get(mod, code[0] - 0xb8);
+        x86_emu_dynam_imm_set(dst_reg, code + 1);
+        break;
+
     case 0xc6:
         dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
         dst8[0] = code[2];
@@ -1211,14 +1223,6 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
                 x86_emu_dynam_set(dst_reg, src_reg->u.r32);
             }
         }
-        break;
-
-    case 0xb9:
-    case 0xba:
-    case 0xbd:
-    case 0xbf:
-        dst_reg = x86_emu_reg_get (mod, code[0] - 0xb8);
-        x86_emu_dynam_imm_set (dst_reg, code + 1);
         break;
 
     default:
@@ -1737,8 +1741,8 @@ int x86_emu_sbb(struct x86_emu_mod *mod, uint8_t *code, int len)
 
 int x86_emu_sub(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
-    struct x86_emu_reg *dst_reg, *src_reg;
-    uint8_t *dst8;
+    struct x86_emu_reg *dst_reg = NULL, *src_reg;
+    uint8_t *dst8, *ipos = NULL;
     uint32_t i32, i16;
 
     switch (code[0])
@@ -1755,17 +1759,27 @@ int x86_emu_sub(struct x86_emu_mod *mod, uint8_t *code, int len)
         dst8[0] -= code[2];
         break;
 
+    case 0x2d:
+        if (!dst_reg)
+        {
+            dst_reg = &mod->eax;
+            ipos = code + 1;
+        }
     case 0x81:
-        dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+        if (!dst_reg)
+        {
+            dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+            ipos = code + 2;
+        }
         if (mod->inst.oper_size == 32)
         {
-            i32 = mbytes_read_int_little_endian_4b(code + 2);
+            i32 = mbytes_read_int_little_endian_4b(ipos);
             x86_emu_add_modify_status(mod, dst_reg->u.r32, - (int)i32);
             dst_reg->u.r32 -= i32;
         }
         else
         {
-            i16 = mbytes_read_int_little_endian_2b(code + 2);
+            i16 = mbytes_read_int_little_endian_2b(ipos);
             x86_emu_add_modify_status(mod, dst_reg->u.r16, - (int)i16);
             dst_reg->u.r16 -= i16;
         }
@@ -2503,13 +2517,21 @@ static int x86_emu_jnbe(struct x86_emu_mod *mod, uint8_t *code, int len)
 
 static int x86_emu_cdq(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
+    // cdq
     if (mod->inst.oper_size == 32)
     {
-        mod->eax.u.r32 = (int32_t)mod->eax.u.r16;
+        if (mod->eax.u.r32 & 0x80000000)
+        {
+            mod->edx.u.r32 = UINT_MAX;
+        }
     }
+    // cwd
     else if (mod->inst.oper_size == 16)
     {
-        mod->eax.u.r16 = (int16_t)mod->eax.u._r16.r8l;
+        if (mod->eax.u.r16 & 0x8000)
+        {
+            mod->edx.u.r16 = 0xffff;
+        }
     }
     return 0;
 }
@@ -2629,6 +2651,7 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0x23, 0, 0}, -1, x86_emu_and },
     { {0x25, 0, 0}, -1, x86_emu_and },
     { {0x2b, 0, 0}, -1, x86_emu_sub },
+    { {0x2d, 0, 0}, -1, x86_emu_sub },
     { {0x3a, 0, 0}, -1, x86_emu_cmp },
     { {0x3c, 0, 0}, -1, x86_emu_cmp },
     { {0x32, 0, 0}, -1, x86_emu_xor },
@@ -2705,6 +2728,8 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0xb5, 0, 0}, -1, x86_emu_mov },
     { {0xb6, 0, 0}, -1, x86_emu_mov },
     { {0xb7, 0, 0}, -1, x86_emu_mov },
+    { {0xb8, 0, 0}, -1, x86_emu_mov },
+    { {0xb9, 0, 0}, -1, x86_emu_mov },
     { {0xba, 0, 0}, -1, x86_emu_mov },
     { {0xbb, 0, 0}, -1, x86_emu_mov },
     { {0xbc, 0, 0}, -1, x86_emu_mov },
