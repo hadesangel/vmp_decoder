@@ -1211,7 +1211,6 @@ int x86_emu_mov(struct x86_emu_mod *mod, uint8_t *code, int len)
             if (src_imm.u.mem.known & UINT_MAX)
             {
                 uint8_t *new_addr = x86_emu_access_mem(mod, src_imm.u.mem.addr32);
-                printf("new_addr = %p, addr32= %x\n", new_addr, src_imm.u.mem.addr32);
                 x86_emu_dynam_imm_set(dst_reg, new_addr);
             }
         }
@@ -1398,7 +1397,7 @@ static int x86_emu_xadd(struct x86_emu_mod *mod, uint8_t *code, int len)
 int x86_emu_and(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     struct x86_emu_reg src_imm = {0}, *dst_reg = NULL, *src_reg = NULL;
-    uint8_t *dst8;
+    uint8_t *dst8, *src8;
 
     switch (code[0])
     {
@@ -1427,8 +1426,9 @@ int x86_emu_and(struct x86_emu_mod *mod, uint8_t *code, int len)
         break;
 
     case 0x22:
-        dst8 = x86_emu_reg8_get_ptr(mod, 0);
-        dst8[0] &= code[1];
+        dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_REG(code[1]));
+        src8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
+        dst8[0] &= src8[0];
         break;
 
     case 0x25:
@@ -1742,7 +1742,7 @@ int x86_emu_sbb(struct x86_emu_mod *mod, uint8_t *code, int len)
 int x86_emu_sub(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     struct x86_emu_reg *dst_reg = NULL, *src_reg;
-    uint8_t *dst8, *ipos = NULL;
+    uint8_t *dst8 = NULL, *ipos = NULL;
     uint32_t i32, i16;
 
     switch (code[0])
@@ -1753,9 +1753,15 @@ int x86_emu_sub(struct x86_emu_mod *mod, uint8_t *code, int len)
         x86_emu_add_dynam_rr(dst_reg, -=, src_reg, 0);
         break;
 
+    case 0x2c:
+        dst8 = x86_emu_reg8_get_ptr(mod, 0); // al
+        x86_emu_add_modify_status(mod, dst8[0], - (int8_t)code[1]);
+        dst8[0] -= code[1];
+        break;
+
     case 0x80:
         dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
-        x86_emu_add_modify_status(mod, dst8[0], - (int)code[2]);
+        x86_emu_add_modify_status(mod, dst8[0], - (int8_t)code[2]);
         dst8[0] -= code[2];
         break;
 
@@ -2666,6 +2672,7 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0x23, 0, 0}, -1, x86_emu_and },
     { {0x25, 0, 0}, -1, x86_emu_and },
     { {0x2b, 0, 0}, -1, x86_emu_sub },
+    { {0x2c, 0, 0}, -1, x86_emu_sub },
     { {0x2d, 0, 0}, -1, x86_emu_sub },
     { {0x3a, 0, 0}, -1, x86_emu_cmp },
     { {0x3c, 0, 0}, -1, x86_emu_cmp },
@@ -2879,14 +2886,51 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
 
 int x86_emu_dump (struct x86_emu_mod *mod)
 {
+#if 0
+    if (mod->inst.count == 5035)
+    {
+        mod->eflags.eflags = 0x206;
+        mod->eflags.known = UINT_MAX;
+    }
+#endif
+    // 调试代码
+    // vmp_jmp 1244出错，指令45288
+    // vmp_jmp 1217
+    // inst[41522]的eax看起来会受eflags的影响
+#if 1
+    if (mod->inst.count == 41522)
+    {
+        mod->eax.u.r32 = 0x213;
+    }
+#endif
 
     printf("EAX[%08x:%08x], EBX[%08x:%08x], ECX[%08x:%08x], EDX[%08x], [%d][stack size = %d]\n"
-        "EDI[%08x:%08x], ESI[%08x:%08x], EBP[%08x:%08x], ESP[%08x], EIP[%08x], CF[%d], ZF[%d], OF[%d], SF[%d]\n",
+        "EDI[%08x:%08x], ESI[%08x:%08x], EBP[%08x:%08x], ESP[%08x], EIP[%08x], EF[%08x], CF[%d], ZF[%d], OF[%d], SF[%d]\n",
         mod->eax.known, mod->eax.u.r32, mod->ebx.known, mod->ebx.u.r32,
         mod->ecx.known, mod->ecx.u.r32, mod->edx.u.r32, mod->inst.count + 1, mod->stack.size - x86_emu_stack_top(mod),
         mod->edi.known, mod->edi.u.r32, mod->esi.known, mod->esi.u.r32,
         mod->ebp.known, mod->ebp.u.r32, mod->esp.u.r32, mod->eip.u.r32,
-        x86_emu_cf_get(mod), x86_emu_zf_get(mod), x86_emu_of_get(mod), x86_emu_sf_get(mod));
+        mod->eflags.eflags, x86_emu_cf_get(mod), x86_emu_zf_get(mod), x86_emu_of_get(mod), x86_emu_sf_get(mod));
+
+
+#if 0
+    if (mod->inst.count == 1109)
+    {
+        static uint8_t *watch_addr = NULL;
+        if (!watch_addr)
+            watch_addr = x86_emu_access_mem(mod, mod->esi.u.r32);
+        if (watch_addr)
+        {
+        //printf("[edi] = [%x]\n", mbytes_read_int_little_endian_4b(watch_addr));
+            int i = 0;
+            for (i = 0; i < 16; i++)
+            {
+                printf("%x, ", watch_addr[i]);
+            }
+            printf("\n");
+        }
+    }
+#endif
 
 #if 0
     uint8_t *stack_start, *stack_end;
@@ -3053,6 +3097,7 @@ static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur,
         {
             imm.u.mem.addr32 = rm_reg->u.r32;
         }
+            printf("debug: addr32= %x\n", imm.u.mem.addr32);
         break;
 
         // MODRM中MOD为0b01, 0b11处理基本是一样的，除了操作的立即数
@@ -3100,6 +3145,7 @@ X86_EMU_SIB_LABEL:
             imm.u.mem.known = UINT_MAX & rm_reg->known;
             imm.u.mem.addr32 = rm_reg->u.r32 + cur[1];
         }
+            printf("debug: addr32= %x,\n", imm.u.mem.addr32);
         break;
 
     case 3:

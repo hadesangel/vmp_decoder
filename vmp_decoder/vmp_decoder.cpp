@@ -481,7 +481,7 @@ extern "C" {
 
     int vmp_decoder_run(struct vmp_decoder *decoder)
     {
-        int  num_of_inst = 20000, inst_in_vmp;
+        int  num_of_inst = 20000, inst_in_vmp, found_vmp = 0;
         xed_error_enum_t xed_error;
         xed_decoded_inst_t xedd;
         int decode_len, ok = 0, j, is_break, ret;
@@ -508,6 +508,7 @@ extern "C" {
 
             if (inst_in_vmp)
             {
+                found_vmp = 1;
                 if (!vmp_start)
                 {
                     decoder->vmp_start_addr = decoder->runtime_vaddr;
@@ -578,7 +579,7 @@ extern "C" {
             //printf("stack  height = %d\n", cfg_node_stack_i + 1);
             cur_inst = vmp_cfg_node_add_inst(cur_cfg_node, decoder->runtime_vaddr, decode_len);
 
-            if (inst_in_vmp)
+            if (found_vmp)
             {
                 ret = x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len);
             }
