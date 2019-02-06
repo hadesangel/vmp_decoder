@@ -297,10 +297,10 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
 
     for (i = 0, regs = &mod->eax; i < 8; i++)
     {
+        regs[i].u.r32 = (i + 1) * 0x11111111;
         regs[i].known = UINT_MAX;
     }
 
-    mod->ebx.u.r32 = 0xb81000;
     mod->word_size = 32;
 
     // 因为系统的堆栈是从尾部增长的，所以我们这里也从尾部开始增长
@@ -2967,12 +2967,12 @@ int x86_emu_dump (struct x86_emu_mod *mod)
     }
 #endif
 
-    printf("EAX[%08x:%08x], EBX[%08x:%08x], ECX[%08x:%08x], EDX[%08x], [%d][stack size = %d]\n"
-        "EDI[%08x:%08x], ESI[%08x:%08x], EBP[%08x:%08x], ESP[%08x], EIP[%08x], EF[%08x], CF[%d], ZF[%d], OF[%d], SF[%d]\n",
-        mod->eax.known, mod->eax.u.r32, mod->ebx.known, mod->ebx.u.r32,
-        mod->ecx.known, mod->ecx.u.r32, mod->edx.u.r32, mod->inst.count + 1, mod->stack.size - x86_emu_stack_top(mod),
-        mod->edi.known, mod->edi.u.r32, mod->esi.known, mod->esi.u.r32,
-        mod->ebp.known, mod->ebp.u.r32, mod->esp.u.r32, mod->eip.u.r32,
+    printf("EAX[%08x:%08x], ECX[%08x:%08x], EDX[%08x:%08x], EBX[%08x], [%d][stack size = %d]\n"
+        "EBP[%08x:%08x], ESI[%08x:%08x], EDI[%08x:%08x], ESP[%08x], EIP[%08x], EF[%08x], CF[%d], ZF[%d], OF[%d], SF[%d]\n",
+        mod->eax.known, mod->eax.u.r32, mod->ecx.known, mod->ecx.u.r32,
+        mod->edx.known, mod->edx.u.r32, mod->ebx.u.r32, mod->inst.count + 1, mod->stack.size - x86_emu_stack_top(mod),
+        mod->ebp.known, mod->ebp.u.r32, mod->esi.known, mod->esi.u.r32,
+        mod->edi.known, mod->edi.u.r32, mod->esp.u.r32, mod->eip.u.r32,
         mod->eflags.eflags, x86_emu_cf_get(mod), x86_emu_zf_get(mod), x86_emu_of_get(mod), x86_emu_sf_get(mod));
 
 
