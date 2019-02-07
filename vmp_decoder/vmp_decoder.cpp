@@ -715,7 +715,7 @@ extern "C" {
                         if (!new_addr)
                         {
                             print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n\n", time2s (0), __FILE__, __LINE__);
-                            exit(0);
+                            goto exit_label;
                         }
                         else
                         {
@@ -768,7 +768,7 @@ extern "C" {
                         if (!new_addr)
                         { 
                             print_err ("[%s] err:  vmp_decoder_run() failed with ret empty. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
-                            exit(0);
+                            goto exit_label;
                         }
                         else
                         { 
@@ -812,6 +812,8 @@ extern "C" {
             if (is_end)
                 break;
         }
+
+exit_label:
 
         if (decoder->dot_graph_output)
         {
