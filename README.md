@@ -11,10 +11,18 @@ vmp protect 2.0以前基于特征即可还原出虚拟机操作的大概内容�
 
 整个项目当前是做为私人项目进行中。
 
+
+
+
+
 How to build the examples:
 
 1. Install Xed, https://github.com/intelxed/xed
 2. Install Visual Studio 2017, open vs project file, and build it.
+
+
+
+
 
 Execute:
 
