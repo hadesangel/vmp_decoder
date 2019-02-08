@@ -10,3 +10,10 @@ vmp protect 2.0以前基于特征即可还原出虚拟机操作的大概内容�
 作者希望直接从源头解决，通过标准的编译器后端优化，降低破解VMP保护的力度。
 
 整个项目当前是做为私人项目进行中。
+
+
+Test:
+
+./vmp_decoder ../../test_data/vmp_test1.vmp.exe
+
+After execute this command, vmp_decoder will generate vmp.log in current working directory.
