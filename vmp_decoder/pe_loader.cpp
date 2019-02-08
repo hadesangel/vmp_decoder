@@ -563,16 +563,17 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
     pfile_header = &pnt_headder->FileHeader;
     psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
 
+#if 0
     for (i = 0; i < pfile_header->NumberOfSections; i++)
     {
-        if (psec_header->SizeOfRawData == 0)
+        if (psec_header[i].SizeOfRawData == 0)
             continue;
 
         if (strncmp((const char *)psec_header[i].Name, ".vmp0", strlen(".vmp0")) == 0)
         {
             pvmp_sec_header = psec_header + i;
             break;
-        }
+        }  
     }
 
     if (!pvmp_sec_header)
@@ -580,6 +581,7 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
         print_err ("[%s] err: pe_loader_fix_reloc() failed with not found vmp section . %s:%d\r\n", time2s (0), __FILE__, __LINE__);
         return -1;
     }
+#endif
 
     pimg_dd = &popt_header->DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
     rva = pimg_dd->VirtualAddress;
@@ -607,10 +609,12 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
                     continue;
 
                 rva = pimg_br->VirtualAddress + (tab[i] & 0x0fff);
+#if 0
                 if ((rva < pvmp_sec_header->VirtualAddress) || (rva >= (pvmp_sec_header->SizeOfRawData)))
                 {
                     continue;
                 }
+#endif
 
                 rfa = pe_loader_rva2rfa(mod, rva);
                 orig_val = mbytes_read_int_little_endian_4b((uint8_t *)mod->image_base + rfa);

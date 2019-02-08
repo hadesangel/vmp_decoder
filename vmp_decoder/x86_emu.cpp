@@ -23,6 +23,7 @@ extern "C" {
 
 static struct x86_emu_reg *x86_emu_reg_get(struct x86_emu_mod *mod, int reg_type);
 static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur, int oper_size1, int *dst_type, int *src_type, x86_emu_operand_t *imm);
+// TODO:下面写的有问题，待修正
 // 在执行加法的修改状态时，必须指明数据进行的是加法还是减法
 // 为什么呢?在解释这个问题之前，先问大家2个问题
 // 

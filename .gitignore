@@ -271,3 +271,5 @@ __pycache__/
 /test_data/vmp_test1.i64
 /test_data/vmp_test1.exe.bak
 /test_data/vmp_test1.idb
+/test_data/vmp_test_assign.vmp.exe.bak
+/test_data/vmp_test1.vmp.idb
