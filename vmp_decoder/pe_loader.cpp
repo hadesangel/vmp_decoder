@@ -169,9 +169,6 @@ extern "C" {
 
         for (i = 0; i < pfile_header->NumberOfSections; i++)
         {
-            if (psec_header->SizeOfRawData == 0)
-                continue;
-
             if (strncmp((const char *)psec_header[i].Name, sec_name, len) == 0)
             {
                 found = 1;
@@ -187,8 +184,8 @@ extern "C" {
 
             if (section_size)
             {
-                *section_size = (psec_header[i].SizeOfRawData > 0) ?
-                    psec_header[i].SizeOfRawData: psec_header[i].SizeOfRawData;
+                *section_size = psec_header[i].SizeOfRawData ?
+                    psec_header[i].SizeOfRawData : psec_header[i].Misc.VirtualSize;
             }
 
             return 1;
@@ -432,7 +429,6 @@ DWORD pe_loader_fa2rva(struct pe_loader *mod, DWORD64 fa)
         return 0;
     }
 
-
     pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
     pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
     popt_header = &pnt_headder->OptionalHeader;
@@ -615,7 +611,6 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
                     continue;
                 }
 #endif
-
                 rfa = pe_loader_rva2rfa(mod, rva);
                 orig_val = mbytes_read_int_little_endian_4b((uint8_t *)mod->image_base + rfa);
                 //printf("orig_val = %x, after fix = %x\n", orig_val, orig_val + fix_offset);
