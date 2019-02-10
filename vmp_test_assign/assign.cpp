@@ -22,5 +22,7 @@ int main()
 
     a = test_assign();
 
+    printf("%d\n", a);
+
     return a + 1;
 }
