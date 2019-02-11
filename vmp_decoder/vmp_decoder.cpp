@@ -188,7 +188,6 @@ extern "C" {
             printf("vmp_decoder_create() failed with pe_loader_create(). %s:%d\n", __FILE__, __LINE__);
             goto fail_label;
         }
-        pe_loader_fix_reloc(mod->pe_mod, 1);
 
         if (dump_pe)
         {
@@ -205,7 +204,8 @@ extern "C" {
         strcpy_s(mod->filename, filename);
 
         mod->image_base = (unsigned char *)mod->pe_mod->image_base;
-        mod->addr_start = ((unsigned char *)mod->image_base + pe_loader_rva2rfa(mod->pe_mod, vmp_start_rva));
+        //mod->addr_start = ((unsigned char *)mod->image_base + pe_loader_rva2rfa(mod->pe_mod, vmp_start_rva));
+        mod->addr_start = ((unsigned char *)mod->image_base + vmp_start_rva);
 
         //printf("image_base = %p, addr_start = %p\n", mod->image_base, mod->addr_start);
 
@@ -221,6 +221,10 @@ extern "C" {
 
         mod->debug.dump_inst = 1;
         mod->debug.hlp = vmp_hlp_create(mod->pe_mod, filename, mod->pe_mod->file_handl, (char *)mod->pe_mod->image_base);
+        if (!mod->debug.hlp)
+        {
+            printf("vmp_decoder_create() failed when vmp_hlp_create(). %s:%d\r\n", __FILE__, __LINE__);
+        }
 
         if (pe_loader_section_find(mod->pe_mod, ".vmp0", &mod->vmp_sections.start[0], &mod->vmp_sections.size[0]))
         {
@@ -277,7 +281,7 @@ extern "C" {
         int ret;
 
         sym_buf[0] = 0;
-        ret = vmp_hlp_get_symbol2(decoder->debug.hlp, address, sym_buf, buf_size, offset);
+        ret = vmp_hlp_get_symbol(decoder->debug.hlp, (uint64_t)address - (uint64_t)decoder->image_base, sym_buf, buf_size, offset);
         if (ret)
         {
             //printf("sym[%s]\n", sym_buf);
@@ -633,7 +637,8 @@ extern "C" {
                     // jmp
                 case 0xe9:
                     offset = mbytes_read_int_little_endian_4b(decoder->runtime_vaddr + 1);
-                    new_addr = (unsigned char *)pe_loader_fa_fix(decoder->pe_mod, (DWORD64)decoder->runtime_vaddr, offset + decode_len);
+                    //new_addr = (unsigned char *)pe_loader_fa_fix(decoder->pe_mod, (DWORD64)decoder->runtime_vaddr, offset + decode_len);
+                    new_addr = decoder->runtime_vaddr + offset + decode_len;
                     if (!new_addr)
                     {
                         printf("vmp_decoder_run() meet un-support jmp offset \n. %s:%d\r\n", __FILE__, __LINE__);
@@ -707,7 +712,7 @@ extern "C" {
                     if (is_break)
                         break;
 
-                    if (inst_in_vmp)
+                    if (found_vmp)
                     {
                         new_addr = x86_emu_eip(decoder->emu);
                         // 这个地方主要是为了保证程序在ret不能处理的情况下，打印一下，方便调试

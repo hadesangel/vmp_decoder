@@ -88,6 +88,9 @@ extern "C" {
         char buf[512];
         pinfo = (PSYMBOL_INFO)buf;
 
+        if (!mod)
+            return 0;
+
         pinfo->SizeOfStruct = sizeof(SYMBOL_INFO);
         pinfo->MaxNameLen = sym_buf_siz;
 

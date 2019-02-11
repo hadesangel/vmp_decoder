@@ -4,6 +4,7 @@
 #define __pe_loader_h__
 
 #include <windows.h>
+#include <stdio.h>
 #include <stdint.h>
 
 struct pe_loader
@@ -12,12 +13,20 @@ struct pe_loader
     
     HANDLE  file_handl;
     HANDLE  map_handl;
-    LPVOID  image_base;
+    uint8_t* buf_base;
+    uint8_t* image_base;
+    uint8_t* sec_handl[16];
+    FILE *fp;
 
     uint32_t entry_point;
     uint32_t fake_image_base;
 
     int     is_x64;
+    int     pe_header_size;
+    int     size_of_image;
+    // 这个参数的意思时在映射到内存时，直接把整个section按照标准
+    // dll加载的方式展开，这样可以直接不用再做地址访问了。
+    int     expand;
 };
 
 struct pe_loader *pe_loader_create(LPCTSTR path);

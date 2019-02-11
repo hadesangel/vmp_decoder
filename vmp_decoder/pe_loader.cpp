@@ -9,6 +9,7 @@ extern "C" {
 #include <winnt.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <assert.h>
 #include "mbytes.h"
 
 #pragma comment(lib, "dbghelp.lib")
@@ -18,6 +19,61 @@ extern "C" {
 
 #define counts_of_array(_a)         (sizeof (_a) / sizeof (_a[0]))
 
+    static int pe_loader_get_info(struct pe_loader *mod, char *filename)
+    {
+        char buf[16 * 1024];
+        int size = 0;
+        FILE *fp = NULL;
+        PIMAGE_DOS_HEADER pdos_header;
+        PIMAGE_NT_HEADERS32 pnt_headder;
+        PIMAGE_FILE_HEADER pfile_header;
+        PIMAGE_OPTIONAL_HEADER32 popt_header = NULL;
+        PIMAGE_SECTION_HEADER psec_header;
+
+        fp = fopen(filename, "rb");
+        if (!fp)
+        {
+            printf("sizeof_pe_header() failed with fopen(). %s:%d\r\n", __FILE__, __LINE__);
+        }
+
+        fread(buf, sizeof(buf), 1, fp);
+
+        pdos_header = (PIMAGE_DOS_HEADER)buf;
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
+        popt_header = &pnt_headder->OptionalHeader;
+        pfile_header = &pnt_headder->FileHeader;
+        psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
+
+        if (pfile_header->Machine == 0x14c)
+        {
+            mod->is_x64 = 0;
+        }
+        else if (pfile_header->Machine == 0x8664)
+        {
+            mod->is_x64 = 1;
+            //printf("[%s] file is x64 arch\n", mod->filename);
+        }
+        else
+            assert(0);
+
+        mod->size_of_image = popt_header->SizeOfImage;
+        mod->pe_header_size = (int)((char *)popt_header - buf) + pnt_headder->FileHeader.SizeOfOptionalHeader + (int)(pnt_headder->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER));
+
+        fclose(fp);
+
+        return 0;
+    }
+
+
+    char* last_error()
+    {
+        static char buf[256];
+        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+               NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
+               buf, (sizeof(buf) / sizeof(char)), NULL);
+        return buf;
+    }
+
     struct pe_loader *pe_loader_create(LPCTSTR filename)
     {
 #undef func_format
@@ -25,10 +81,13 @@ extern "C" {
 #define func_format     "pe_loader_create(filename:%s)"
 #define func_format_s   filename
         struct pe_loader *mod = (struct pe_loader *)calloc(1, sizeof(mod[0]));
-        PIMAGE_FILE_HEADER pfile_header;
+        //PIMAGE_FILE_HEADER pfile_header;
         PIMAGE_NT_HEADERS32 pnt_headder;
         PIMAGE_OPTIONAL_HEADER32 popt_header;
         PIMAGE_DOS_HEADER pdos_header;
+        PIMAGE_SECTION_HEADER psec_header;
+        SYSTEM_INFO sys_info;
+        int i;
 
         if (NULL == mod)
         {
@@ -41,6 +100,16 @@ extern "C" {
             return NULL;
         }
         strcpy(mod->filename, filename);
+        mod->expand = 1;
+
+        if (pe_loader_get_info(mod, (char *)filename))
+        {
+        }
+
+        GetSystemInfo(&sys_info);
+        printf("AllocationGraularity = %d\n", sys_info.dwAllocationGranularity);
+
+#if 0
 
         mod->file_handl = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
@@ -50,47 +119,89 @@ extern "C" {
             goto fail_label;
         }
 
-        mod->map_handl = CreateFileMapping(mod->file_handl, NULL, PAGE_READWRITE, 0, 0, NULL);
+        mod->map_handl = CreateFileMapping(mod->file_handl, NULL, PAGE_READWRITE, 0, mod->size_of_image, NULL);
         if (!mod->map_handl)
         {
-            printf("pe_loader_create(%s) faile with (%x)CreateFileMapping()\n", filename, GetLastError());
+            printf("pe_loader_create(%s) failed with (%x)CreateFileMapping()\n", filename, GetLastError());
             goto fail_label;
         }
 
-        mod->image_base = MapViewOfFile(mod->map_handl, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+        mod->image_base = MapViewOfFile(mod->map_handl, FILE_MAP_ALL_ACCESS, 0, 0, mod->pe_header_size);
         if (!mod->image_base)
         {
-            printf("pe_loader_create() faile with MapViewOfFile()\n");
+            printf("pe_loader_create() failed with MapViewOfFile()\n");
             goto fail_label;
         }
-
-        pfile_header = pe_loader_get_file_headers (mod);
-
-        if (pfile_header->Machine == 0x14c)
-        {
-            //printf("[%s] file is x86 arch\n", mod->filename);
-        }
-        else if (pfile_header->Machine == 0x8664)
-        {
-            mod->is_x64 = 1;
-            //printf("[%s] file is x64 arch\n", mod->filename);
-        }
-        else
-        {
-            printf("[%s] file is un-recognized[%ul]. %s:%d\r\n", mod->filename, pfile_header->Machine, __FILE__, __LINE__);
-        }
-
-        if (mod->is_x64)
-        {
-            printf("pe_loader() failed with un-support X64 arch. %s:%d\r\n", __FILE__, __LINE__);
-        }
-
 
         pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
         pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)mod->image_base + pdos_header->e_lfanew));
         popt_header = &pnt_headder->OptionalHeader;
+        psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
+
+        pfile_header = pe_loader_get_file_headers (mod);
+
+        for (i = 0; i < pnt_headder->FileHeader.NumberOfSections; i++)
+        {
+            mod->sec_handl[i]  = (uint8_t *)MapViewOfFile(mod->map_handl, FILE_MAP_ALL_ACCESS, 0, psec_header[i].VirtualAddress, 
+                psec_header[i].Misc.VirtualSize / sys_info.dwAllocationGranularity + sys_info.dwAllocationGranularity);
+            if (!mod->sec_handl[i])
+            {
+                printf("pe_loader_create() failed with (%s)MapViewOfFile()\n", last_error());
+                goto fail_label;
+            }
+        }
+#endif
+
+#if 1
+        mod->fp = fopen(filename, "rb");
+        if (!mod->fp)
+        {
+            printf("pe_loader() failed when fopen()\n");
+            goto fail_label;
+        }
+
+        mod->buf_base = (uint8_t *)calloc(1, (mod->size_of_image/ (64 * 1024) + 2) * 64 * 1024);
+        if (NULL == mod->buf_base)
+        {
+            printf("pe_loader() failed when calloc()\n");
+            goto fail_label;
+        }
+        // 64k¶ÔÆë
+        mod->image_base = (uint8_t *)((uint64_t)(mod->buf_base + 64 * 1024) & ~0xffff);
+        fread(mod->image_base, mod->pe_header_size, 1, mod->fp);
+
+        pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)mod->image_base + pdos_header->e_lfanew));
+        popt_header = &pnt_headder->OptionalHeader;
+        psec_header = (PIMAGE_SECTION_HEADER)((char *)popt_header + sizeof(popt_header[0]));
+
+        for (i = 0; i < pnt_headder->FileHeader.NumberOfSections; i++)
+        {
+            int read_len;
+
+            if (!psec_header[i].PointerToRawData
+                || !psec_header[i].SizeOfRawData)
+            {
+                continue;
+            }
+            fseek(mod->fp, psec_header[i].PointerToRawData, SEEK_SET);
+
+            read_len = (psec_header[i].SizeOfRawData > psec_header[i].Misc.VirtualSize) ? psec_header[i].SizeOfRawData : psec_header[i].Misc.VirtualSize;
+
+            fread(mod->image_base + psec_header[i].VirtualAddress, psec_header[i].Misc.VirtualSize, 1, mod->fp);
+
+            printf("copy section[%s] virtualAddress[%x]\n", psec_header[i].Name, psec_header[i].VirtualAddress);
+        }
+#endif
+
+        if (mod->is_x64)
+        {
+            printf("pe_loader() failed with un-support X64 arch. %s:%d\r\n", __FILE__, __LINE__);
+            return NULL;
+        }
 
         mod->fake_image_base = popt_header->ImageBase;
+        pe_loader_fix_reloc(mod, 1);
 
         //printf("iat addr = 0x%08x, popt_head = 0x%08x\r\n", iat_addr, popt_header->ImageBase);
 
@@ -592,7 +703,8 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
         PWORD tab;
         int counts;
 
-        pimg_br = (PIMAGE_BASE_RELOCATION)((uint8_t *)mod->image_base + rfa);
+        //pimg_br = (PIMAGE_BASE_RELOCATION)((uint8_t *)mod->image_base + rfa);
+        pimg_br = (PIMAGE_BASE_RELOCATION)((uint8_t *)mod->image_base + pimg_dd->VirtualAddress);
 
         while (pimg_br->VirtualAddress)
         {
@@ -611,11 +723,11 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
                     continue;
                 }
 #endif
-                rfa = pe_loader_rva2rfa(mod, rva);
-                orig_val = mbytes_read_int_little_endian_4b((uint8_t *)mod->image_base + rfa);
+                //rfa = pe_loader_rva2rfa(mod, rva);
+                orig_val = mbytes_read_int_little_endian_4b((uint8_t *)mod->image_base + rva);
                 //printf("orig_val = %x, after fix = %x\n", orig_val, orig_val + fix_offset);
                 orig_val += fix_offset;
-                mbytes_write_int_little_endian_4b((uint8_t *)mod->image_base + rfa, orig_val);
+                mbytes_write_int_little_endian_4b((uint8_t *)mod->image_base + rva, orig_val);
             }
 
             pimg_br = (PIMAGE_BASE_RELOCATION)((uint8_t *)pimg_br + pimg_br->SizeOfBlock);

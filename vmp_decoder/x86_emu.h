@@ -200,6 +200,7 @@ typedef struct x86_emu_mod
         int         rep;
         int         is_fa;
         int         count;
+        uint32_t        access_addr;
     } inst;
 
     struct {
