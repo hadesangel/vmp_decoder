@@ -371,6 +371,7 @@ int x86_emu_push(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     uint32_t imm32;
     uint16_t imm16;
+    x86_emu_operand_t E;
 
     switch (code[0])
     {
@@ -399,7 +400,22 @@ int x86_emu_push(struct x86_emu_mod *mod, uint8_t *code, int len)
         break;
 
     case 0x6a:
-        x86_emu__push_imm8(mod, code[1]);
+        imm32 = code[1];
+        x86_emu__push_imm32(mod, imm32);
+        break;
+
+    case 0xff:
+        memset(&E, 0, sizeof (E));
+        x86_emu_modrm_analysis2(mod, code + 1, 0, NULL, NULL, &E);
+        if (E.kind == a_mem)
+        {
+            uint8_t *new_addr = x86_emu_access_mem(mod, E.u.mem.addr32);
+            x86_emu__push(mod, NULL, new_addr, mod->inst.oper_size / 8);
+        }
+        else
+        {
+            assert(0);
+        }
         break;
 
     default:
@@ -444,7 +460,7 @@ static int x86_emu__pop(struct x86_emu_mod *mod, int len)
 
 static int x86_emu__push(struct x86_emu_mod *mod, uint8_t *known, uint8_t *data, int len)
 {
-    int top = (int)(x86_emu_access_esp(mod) - mod->stack.data);
+    int top = (int)(x86_emu_access_esp(mod) - mod->stack.data), i;
 
     if (top > mod->stack.size)
     {
@@ -453,7 +469,15 @@ static int x86_emu__push(struct x86_emu_mod *mod, uint8_t *known, uint8_t *data,
     }
 
     memcpy (mod->stack.data + (top - len), data, len);
-    memcpy (mod->stack.known + (top - len), known, len);
+    if (!known)
+    {
+        for (i = 0; i < len; i++)
+            mod->stack.known[top - len + i] = 0xff;
+    }
+    else
+    {
+        memcpy (mod->stack.known + (top - len), known, len);
+    }
 
     mod->esp.u.r32 -= len;
 
@@ -1312,9 +1336,25 @@ int x86_emu_add(struct x86_emu_mod *mod, uint8_t *code, int len)
     x86_emu_reg_t *dst_reg, *src_reg;
     uint8_t *dst8, *src8;
     uint32_t i32, i16;
+    x86_emu_operand_t E;
 
     switch (code[0])
     {
+    case 0x00:
+        memset(&E, 0, sizeof (E));
+        x86_emu_modrm_analysis2(mod, code + 1, 0, NULL, NULL, &E);
+        if (E.kind == a_mem)
+        {
+            uint8_t *new_addr = x86_emu_access_mem(mod, E.u.mem.addr32);
+
+            new_addr[0] += X86_EMU_REG_AL(mod);
+        }
+        else
+        {
+            assert(0);
+        }
+        break;
+
     case 0x02:
         dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_REG(code[1]));
         src8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
@@ -1384,6 +1424,19 @@ int x86_emu_add(struct x86_emu_mod *mod, uint8_t *code, int len)
         else
         {
             dst_reg->u.r16 += mbytes_read_int_little_endian_2b(code + 2);
+        }
+        break;
+
+    case 0x83:
+        dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
+        x86_emu_add_modify_status(mod, (mod->inst.oper_size == 32) ? dst_reg->u.r32 : dst_reg->u.r16, code[2], 0);
+        if (mod->inst.oper_size == 32)
+        {
+            dst_reg->u.r32 += code[2];
+        }
+        else
+        {
+            dst_reg->u.r16 += code[2];
         }
         break;
 
@@ -2609,13 +2662,22 @@ static int x86_emu_jnbe(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     switch (code[0])
     {
+    case 0x77:
+        if ((x86_emu_cf_get(mod) == 0) && (x86_emu_zf_get(mod) == 0))
+        {
+            mod->eip.u.r32 = (((uint64_t)mod->inst.start) & UINT_MAX)
+                + mod->inst.len + code[1];
+            mod->eip.known = UINT_MAX;
+            return X86_EMU_UPDATE_EIP;
+        }
+        break;
+
     case 0x87:
         if ((x86_emu_cf_get(mod) == 0) && (x86_emu_zf_get(mod) == 0))
         {
             mod->eip.u.r32 = (((uint64_t) mod->inst.start) & UINT_MAX)
                 + mod->inst.len + x86_emu_dynam_le_read(mod->inst.oper_size, code + 1);
             mod->eip.known = UINT_MAX;
-            mod->inst.is_fa = 1;
             return X86_EMU_UPDATE_EIP;
         }
         break;
@@ -2740,7 +2802,6 @@ static inline int x86_emu_inst_init(struct x86_emu_mod *mod, uint8_t *inst, int 
     mod->inst.start = inst;
     mod->inst.len = len;
     mod->inst.rep = 0;
-    mod->inst.is_fa = 0;
     mod->inst.access_addr = 0;
 
     return 0;
@@ -2748,6 +2809,7 @@ static inline int x86_emu_inst_init(struct x86_emu_mod *mod, uint8_t *inst, int 
 
 struct x86_emu_on_inst_item x86_emu_inst_tab[] =
 {
+    { {0x00, 0, 0}, -1, x86_emu_add },
     { {0x02, 0, 0}, -1, x86_emu_add },
     { {0x03, 0, 0}, -1, x86_emu_add },
     { {0x04, 0, 0}, -1, x86_emu_add },
@@ -2822,6 +2884,7 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0x81, 0, 0}, 5, x86_emu_sub },
     { {0x81, 0, 0}, 6, x86_emu_xor },
     { {0x81, 0, 0}, 7, x86_emu_cmp },
+    { {0x83, 0, 0}, 0, x86_emu_add },
     { {0x84, 0, 0}, -1, x86_emu_test },
     { {0x85, 0, 0}, -1, x86_emu_test },
     { {0x86, 0, 0}, -1, x86_emu_xchg },
@@ -3093,7 +3156,7 @@ int x86_emu_run(struct x86_emu_mod *mod, uint8_t *addr, int len)
         break;
     }
 
-    for (; array->opcode[0]; array++)
+    for (; array->on_inst; array++)
     {
         if ((array->opcode[0] != addr[code_i])
             || (array->opcode[1] && (array->opcode[1] != addr[code_i + 1])))
@@ -3525,9 +3588,6 @@ uint8_t *x86_emu_eip(struct x86_emu_mod *mod)
     else 
     {
         new_addr = (uint8_t *)(mod->addr64_prefix | (uint64_t)mod->eip.u.r32);
-        if (mod->inst.is_fa)
-            return new_addr;
-
         //return new_addr ? pe_loader_va2fa(mod->pe_mod, new_addr) : NULL;
         return new_addr;
     }
