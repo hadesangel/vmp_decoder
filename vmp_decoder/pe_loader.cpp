@@ -189,8 +189,6 @@ extern "C" {
             read_len = (psec_header[i].SizeOfRawData > psec_header[i].Misc.VirtualSize) ? psec_header[i].SizeOfRawData : psec_header[i].Misc.VirtualSize;
 
             fread(mod->image_base + psec_header[i].VirtualAddress, psec_header[i].Misc.VirtualSize, 1, mod->fp);
-
-            printf("copy section[%s] virtualAddress[%x]\n", psec_header[i].Name, psec_header[i].VirtualAddress);
         }
 #endif
 

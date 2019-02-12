@@ -495,7 +495,7 @@ extern "C" {
         struct vmp_inst_list *cur_inst, *t_inst;
         char buf[64];
         uint8_t *new_addr;
-        static int vmp_start = 0;
+        static int vmp_start = 0, not_empty = 0;
 
         if (!decoder->dot_graph_output)
         {
@@ -523,10 +523,14 @@ extern "C" {
 
                 if (!cur_cfg_node->debug.vmp)
                 {
-                    //printf("vmp [%d]\n", decoder->vmp_sections.call_counts);
                     vmp_cfg_node_update_vmp(cur_cfg_node, ++decoder->vmp_sections.call_counts);
-                    //printf("vmp name[%s]\n", cur_cfg_node->name);
                 }
+
+                if (!not_empty && !x86_emu_stack_is_empty(decoder->emu))
+                {
+                    not_empty = 1;
+                }
+
             }
             else
             {
@@ -535,6 +539,11 @@ extern "C" {
                     vmp_start = 0;
                     printf("Now, we out vmp address. %s:%d\r\n", __FILE__, __LINE__);
                 }
+            }
+
+            if (not_empty && !inst_in_vmp && x86_emu_stack_is_empty(decoder->emu))
+            {
+                break;
             }
 
             xed_error = xed_decode(&xedd, decoder->runtime_vaddr, 15);
@@ -567,6 +576,7 @@ extern "C" {
                 vmp_decoder_dump_inst(decoder, &xedd, (xed_uint64_t)decoder->runtime_vaddr, buf, sizeof (buf) -1);
                 printf("[%s]\n", buf);
             }
+
             if (!cur_cfg_node)
             {
                 if (NULL == (cur_cfg_node = vmp_cfg_node_create(decoder, decoder->runtime_vaddr)))

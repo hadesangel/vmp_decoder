@@ -74,7 +74,7 @@ extern "C" {
         // 依然无法解决崩溃时的信息漏掉的问题，采用了try, catch的方式，捕获到异常后，强行
         // 进行fflush
         // 我们采用第2种
-        freopen("vmp.log", "w", stdout);
+         freopen("vmp.log", "w", stdout);
 
         vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, 0, cmd_mod.dump_pe);
         if (NULL == vmp_decoder1)
@@ -87,7 +87,7 @@ extern "C" {
         { 
             if (vmp_decoder_run(vmp_decoder1))
             {
-                printf("main() failed with vmp_decoder_run(). %s:%d", __FILE__, __LINE__);
+                printf("main() failed with vmp_decoder_run(). %s:%d\n", __FILE__, __LINE__);
             }
         }
         __finally

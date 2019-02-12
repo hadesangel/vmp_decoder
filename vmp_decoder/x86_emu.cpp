@@ -23,30 +23,6 @@ extern "C" {
 
 static struct x86_emu_reg *x86_emu_reg_get(struct x86_emu_mod *mod, int reg_type);
 static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur, int oper_size1, int *dst_type, int *src_type, x86_emu_operand_t *imm);
-// TODO:下面写的有问题，待修正
-// 在执行加法的修改状态时，必须指明数据进行的是加法还是减法
-// 为什么呢?在解释这个问题之前，先问大家2个问题
-// 
-// 问题1，在x86指令这个层面，所有的负数都会转成补码，那么为什么
-// 在设置CF标志时，白皮书上会写，当产生进位和借位时设置CF。理论上转成补码后
-// 所有的操作都是加法，那么应该只有加法（进位），没有减法（借位）才对，那么
-// 书上这么说是什么意思呢？
-//
-// 问题2， 
-//     mov eax, 5
-//     mov ecx, 4
-//     cmp eax, ecx
-//   eax = 0x00000005
-//   ecx = 0x00000004
-// 在执行cmp时，实际上是执行减法，所以
-//   ecx = 0xfffffffc
-//   eax = 0x00000005
-//    +
-//      1 0x00000001
-// 然后设置了CF位，但是我们明显看出eax是大的，所以不该设置CF
-// 这个问题的原因是，当执行减法时，补码的转换被认为是借位，假如补码在加法后
-// 产生了进位，那么借位和进位会互相抵消，只有抵消不了的，才是实际真实产生的
-// 进位和借位
 static int x86_emu_add_modify_status(struct x86_emu_mod *mod, uint32_t dst, uint32_t src, int borrow);
 
 #define x86_emu_reg8_get(reg, reg_type)     ((reg_type < 4) ? (reg)->u._r16.r8l:(reg)->u._r16.r8h)
@@ -446,11 +422,11 @@ static int x86_emu__pop(struct x86_emu_mod *mod, int len)
 {
     int top = (int)(x86_emu_access_esp(mod) - mod->stack.data);
 
-    if ((top + len) >= mod->stack.size)
+    if ((top + len) > mod->stack.size)
     {
-        printf("[start:%x] [end:%x] [top=%x] [len=%x]\n", 
+        printf("x86_emu__pop() failed with downflow [start:%x] [end:%x] [top=%x] [len=%x]\n", 
             mod->stack.esp_start, mod->stack.esp_end, top, len);
-        assert(0);
+        return -1;
     }
 
     mod->esp.u.r32 += len;
@@ -3608,6 +3584,12 @@ uint8_t *x86_emu_reg8_get_known_ptr(struct x86_emu_mod *mod, int reg_type)
     return (reg_type < 4) ? ((uint8_t *)(&regs[reg_type % 4].known))
         :(((uint8_t *)(&regs[reg_type % 4].known)) + 1);
 }
+
+int x86_emu_stack_is_empty(struct x86_emu_mod *mod)
+{
+    return (x86_emu_stack_top(mod) == mod->stack.size);
+}
+
 
 #ifdef __cplusplus
 }

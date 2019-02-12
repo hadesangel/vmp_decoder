@@ -254,6 +254,7 @@ int x86_emu_destroy(struct x86_emu_mod *mod);
 */
 #define X86_EMU_UPDATE_EIP      1
 int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
+int x86_emu_stack_is_empty(struct x86_emu_mod *mod);
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod);
 
