@@ -15,11 +15,13 @@ extern "C" {
         int dump_pe;
         char filename[128];
         char log_filename[128];
+        uint32_t vmp_start_addr;
     };
 
     int vmp_help(void)
     {
-        printf("Usage: vmp_decoder [-dump_pe] [-help] filename\n");
+        printf("Usage: vmp_decoder [-dump_pe] [-vmp_start_addr] [-help] filename\n"
+                "\t\t-vmp_start_addr    IDA address  \n");
         return 0;
     }
 
@@ -38,13 +40,18 @@ extern "C" {
                 vmp_help();
                 return 1;
             }
+            else if (!strcmp(argv[i], "-vmp_start_addr "))
+            {
+                cmd_mod->vmp_start_addr = atoi(argv[i+1]);
+                i++;
+            }
             else
             {
                 strcpy(cmd_mod->filename, argv[i]);
             }
         }
 
-        if (!cmd_mod->filename[0])
+        if (!cmd_mod->filename[0] || !cmd_mod->vmp_start_addr)
         {
             vmp_help();
             return 1;
@@ -74,9 +81,9 @@ extern "C" {
         // 依然无法解决崩溃时的信息漏掉的问题，采用了try, catch的方式，捕获到异常后，强行
         // 进行fflush
         // 我们采用第2种
-         freopen("vmp.log", "w", stdout);
+        freopen("vmp.log", "w", stdout);
 
-        vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, 0, cmd_mod.dump_pe);
+        vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, cmd_mod.vmp_start_addr, cmd_mod.dump_pe);
         if (NULL == vmp_decoder1)
         {
             printf("main() failed with vmp_decoder_create(). %s:%d\n", __FILE__, __LINE__);

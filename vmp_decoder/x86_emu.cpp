@@ -429,6 +429,9 @@ static int x86_emu__pop(struct x86_emu_mod *mod, int len)
         return -1;
     }
 
+    if (!mod->inst.access_addr) mod->inst.access_addr = mod->esp.u.r32 + len;
+    else mod->inst.access_addr2 = mod->esp.u.r32 + len;
+
     mod->esp.u.r32 += len;
 
     return 0;
@@ -443,6 +446,9 @@ static int x86_emu__push(struct x86_emu_mod *mod, uint8_t *known, uint8_t *data,
         print_err ("[%s] err:  x86_emu__push() failed with overflow. %s:%d\r\n", time2s (0), __FILE__, __LINE__);
         return -1;
     }
+
+    if (!mod->inst.access_addr) mod->inst.access_addr = mod->esp.u.r32 - len;
+    else mod->inst.access_addr2 = mod->esp.u.r32 - len;
 
     memcpy (mod->stack.data + (top - len), data, len);
     if (!known)
@@ -2779,6 +2785,7 @@ static inline int x86_emu_inst_init(struct x86_emu_mod *mod, uint8_t *inst, int 
     mod->inst.len = len;
     mod->inst.rep = 0;
     mod->inst.access_addr = 0;
+    mod->inst.access_addr2 = 0;
 
     return 0;
 }
@@ -3035,10 +3042,10 @@ int x86_emu_dump (struct x86_emu_mod *mod)
     }
 #endif
 
-    printf("EAX[%08x:%08x], ECX[%08x:%08x], EDX[%08x:%08x], EBX[%08x], addr[%08x], [%d][stack = %d]\n"
+    printf("EAX[%08x:%08x], ECX[%08x:%08x], EDX[%08x:%08x], EBX[%08x], addr[%x], addr2[%x] [%d][stack = %d]\n"
         "EBP[%08x:%08x], ESI[%08x:%08x], EDI[%08x:%08x], ESP[%08x], EIP[%08x], EF[%08x], CF[%d], ZF[%d], OF[%d], SF[%d]\n",
         mod->eax.known, mod->eax.u.r32, mod->ecx.known, mod->ecx.u.r32,
-        mod->edx.known, mod->edx.u.r32, mod->ebx.u.r32, mod->inst.access_addr, mod->inst.count + 1, mod->stack.size - x86_emu_stack_top(mod),
+        mod->edx.known, mod->edx.u.r32, mod->ebx.u.r32, mod->inst.access_addr, mod->inst.access_addr2, mod->inst.count + 1, mod->stack.size - x86_emu_stack_top(mod),
         mod->ebp.known, mod->ebp.u.r32, mod->esi.known, mod->esi.u.r32,
         mod->edi.known, mod->edi.u.r32, mod->esp.u.r32, mod->eip.u.r32,
         mod->eflags.eflags, x86_emu_cf_get(mod), x86_emu_zf_get(mod), x86_emu_of_get(mod), x86_emu_sf_get(mod));
@@ -3046,15 +3053,15 @@ int x86_emu_dump (struct x86_emu_mod *mod)
 
 #if 0
         static uint8_t *watch_addr = NULL;
-    if (mod->inst.count == 1244)
-    {
-        if (!watch_addr)
-            watch_addr = x86_emu_access_mem(mod, mod->ebp.u.r32);
-    }
+        if (mod->inst.count == 3335)
+        {
+            if (!watch_addr)
+                watch_addr = x86_emu_access_mem(mod, mod->esi.u.r32);
+        }
 
         if (watch_addr)
         {
-        printf("[ebp] = [%x]\n", mbytes_read_int_little_endian_4b(watch_addr));
+            printf("[esi] = [%x]\n", mbytes_read_int_little_endian_4b(watch_addr));
         }
 #endif
 
@@ -3080,7 +3087,7 @@ int x86_emu_dump (struct x86_emu_mod *mod)
     return 0;
 }
 
-int x86_emu_run(struct x86_emu_mod *mod, uint8_t *addr, int len)
+int x86_emu_run(struct x86_emu_mod *mod, uint8_t *addr, int len, x86_emu_flow_analysis_t *analy)
 {
     int code_i = 1, ret = -1;
     struct x86_emu_on_inst_item *array = x86_emu_inst_tab;
@@ -3559,12 +3566,10 @@ uint8_t *x86_emu_eip(struct x86_emu_mod *mod)
     if ((mod->eip.u.r32 & 0xffC00000) == FAKE_IMAGE_BASE)
     {
         return mod->pe_mod->image_base + (mod->eip.u.r32 - FAKE_IMAGE_BASE);
-        //return pe_loader_va2fa2(mod->pe_mod, mod->eip.u.r32);
     }
     else 
     {
         new_addr = (uint8_t *)(mod->addr64_prefix | (uint64_t)mod->eip.u.r32);
-        //return new_addr ? pe_loader_va2fa(mod->pe_mod, new_addr) : NULL;
         return new_addr;
     }
 

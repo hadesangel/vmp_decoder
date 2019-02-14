@@ -200,7 +200,8 @@ typedef struct x86_emu_mod
         int         rep;
         int         is_fa;
         int         count;
-        uint32_t        access_addr;
+        uint32_t    access_addr;
+        uint32_t    access_addr2;
     } inst;
 
     struct {
@@ -237,6 +238,18 @@ typedef struct x86_emu_on_inst_item
 #define XE_DWORD_W1(v32)                (v32 & 0x0000ffff)
 #define XE_DWORD_W2(v32)                (v32 & 0xffff0000)
 
+#define X86_JMP         1
+#define X86_COND_JMP    2
+
+typedef struct x86_emu_flow_analysis
+{
+    // 1: jmp
+    // 2: condition jmp 
+    int jmp_type;
+    int cond;
+    uint8_t *true_addr;
+    uint8_t *false_addr;
+} x86_emu_flow_analysis_t;
 
 struct x86_emu_create_param
 {
@@ -253,7 +266,7 @@ int x86_emu_destroy(struct x86_emu_mod *mod);
             1           succes, and update eip
 */
 #define X86_EMU_UPDATE_EIP      1
-int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len);
+int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len, x86_emu_flow_analysis_t *analy);
 int x86_emu_stack_is_empty(struct x86_emu_mod *mod);
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod);
