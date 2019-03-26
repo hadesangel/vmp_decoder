@@ -1,4 +1,4 @@
-
+﻿
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +28,7 @@ extern "C" {
     int vmp_cmd_parse(struct vmp_cmd_params *cmd_mod, int argc, char **argv)
     {
         int i;
+        char *str;
 
         for (i = 1; i < argc; i++)
         {
@@ -40,9 +41,10 @@ extern "C" {
                 vmp_help();
                 return 1;
             }
-            else if (!strcmp(argv[i], "-vmp_start_addr "))
+            else if (!strcmp(argv[i], "-vmp_start_addr"))
             {
-                cmd_mod->vmp_start_addr = atoi(argv[i+1]);
+                str = argv[i + 1];
+                cmd_mod->vmp_start_addr = strtol(argv[i+1], NULL, ((str[0] == '0') && (str[0] == 'x')) ? 16:10);
                 i++;
             }
             else
@@ -69,18 +71,18 @@ extern "C" {
             return 0;
         }
 
-        // ���ڵ��Ե�ʱ������һ�����⣬���Ǽ�����cmd��ֱ�����аѵ�����Ϣֱ���������Ļ��
-        // ��Ȼ���������꣬Ȼ����Ϊ������Ϣ̫����Ҫ�ܳ�ʱ����ܽ��������Ǽ����ض���
-        // �ļ�����Ժܿ������꣬������Ϊprintf���л������ģ���ʹ׷����\n���������ض�
-        // �򵽹ܵ���ʱ������Ϊ�ܵ���BUFû��������գ����¼������Ϣ���ܵ���д����ô��
-        // ϵͳ����ʱ�����־������ܲ���ȫ
-        // ������2�ֽ��˼·
-        //      1. setbuf(stdout, NULL)�� ��printf�����������0��������Ϣ���Լ�ʹˢ����׼
-        // ���,�����������ó������ܽ��ͣ��������ԣ�����ֻ�д�Լ��ǰ��1/5����
-        //      2. �ڳ����ڲ���printf�ض����ļ�����ȥ�����Ǿ������Է��֣�freopen���Ժ�
-        // ��Ȼ�޷��������ʱ����Ϣ©�������⣬������try, catch�ķ�ʽ�������쳣��ǿ��
-        // ����fflush
-        // ���ǲ��õ�2��
+        // 我在调试的时候碰到一个问题，就是假如在cmd里直接运行把调试信息直接输出到屏幕上
+        // 虽然可以运行完，然后因为错误信息太多需要很长时间才能结束，但是假如重定向到
+        // 文件里，可以很快运行完，不过因为printf是有缓冲区的，即使追加了\n，但是在重定
+        // 向到管道里时可能因为管道的BUF没有立即清空，导致假如把信息往管道里写，那么在
+        // 系统崩溃时这个日志输出可能不完全
+        // 现在有2种解决思路
+        //      1. setbuf(stdout, NULL)， 把printf的输出缓冲置0，这样信息可以即使刷到标准
+        // 输出,但是这样会让程序性能降低，经过测试，性能只有大约以前的1/5左右
+        //      2. 在程序内部把printf重定向到文件里面去，但是经过测试发现，freopen过以后
+        // 依然无法解决崩溃时的信息漏掉的问题，采用了try, catch的方式，捕获到异常后，强行
+        // 进行fflush
+        // 我们采用第2种
         freopen("vmp.log", "w", stdout);
 
         vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, cmd_mod.vmp_start_addr, cmd_mod.dump_pe);

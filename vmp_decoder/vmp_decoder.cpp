@@ -1,4 +1,4 @@
-#ifdef __cplusplus
+ï»¿#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -138,9 +138,9 @@ extern "C" {
             return NULL;
         }
 
-        // ÒòÎªÎÒÃÇĞèÒª¶ÔÈ¥¿ÇµÄvmp×öµØÖ·µÄÖØÓ³Éä¹¤×÷£¬ËùÒÔÎÒÃÇ°ÑÎÄ¼ş´ÓÓ²ÅÌÓ³Éäµ½ÄÚ´æ²»ÄÜÊÇ
-        // Ö»¶ÁµÄ£¬µ«ÊÇ¼ÙÈç¸Ä³É¶ÁĞ´·½Ê½À´Ó³Éä£¬ÄÇÃ´ÎÒÔÚĞŞ¸ÄÁËÖØ¶¨Î»±íºó£¬Ò²»áÍ¬Ê±ĞŞ¸ÄÎÄ¼ş
-        // ËùÒÔÎÒÕâÀï¶ÔÃüÁîÊäÈëµÄÎÄ¼ş×öÁËÒ»¸ö±¸·İ£¬È»ºóĞŞ¸ÄÕâ¸ö±¸·İµÄÎÄ¼ş¼´¿É¡£
+        // å› ä¸ºæˆ‘ä»¬éœ€è¦å¯¹å»å£³çš„vmpåšåœ°å€çš„é‡æ˜ å°„å·¥ä½œï¼Œæ‰€ä»¥æˆ‘ä»¬æŠŠæ–‡ä»¶ä»ç¡¬ç›˜æ˜ å°„åˆ°å†…å­˜ä¸èƒ½æ˜¯
+        // åªè¯»çš„ï¼Œä½†æ˜¯å‡å¦‚æ”¹æˆè¯»å†™æ–¹å¼æ¥æ˜ å°„ï¼Œé‚£ä¹ˆæˆ‘åœ¨ä¿®æ”¹äº†é‡å®šä½è¡¨åï¼Œä¹Ÿä¼šåŒæ—¶ä¿®æ”¹æ–‡ä»¶
+        // æ‰€ä»¥æˆ‘è¿™é‡Œå¯¹å‘½ä»¤è¾“å…¥çš„æ–‡ä»¶åšäº†ä¸€ä¸ªå¤‡ä»½ï¼Œç„¶åä¿®æ”¹è¿™ä¸ªå¤‡ä»½çš„æ–‡ä»¶å³å¯ã€‚
         sprintf(bak_filename, "%s.bak", filename);
         CopyFile(filename, bak_filename, FALSE);
 
@@ -347,6 +347,74 @@ extern "C" {
         return 0;
     }
 
+    int vmp_decoder_find_vmp_start_addr(struct vmp_decoder *decoder)
+    {
+        xed_error_enum_t xed_error;
+        xed_decoded_inst_t xedd;
+        int decode_len;
+
+        xed_decoded_inst_zero(&xedd);
+        xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
+        int inst_in_vmp;
+
+        unsigned char *start_addr = decoder->runtime_vaddr;
+
+        unsigned char *ret_addrs[128], *ret_addr;
+        int ret_addrs_i = -1;
+
+        while (1)
+        {
+            inst_in_vmp = vmp_addr_in_vmp_section(decoder, start_addr);
+
+            xed_error = xed_decode(&xedd, start_addr, 15);
+            if (xed_error != XED_ERROR_NONE)
+            {
+                printf("vmp_decoder_run() failed with (%s)xed_decode(). %s:%d\n",
+                    xed_error_enum_t2str(xed_error), __FILE__, __LINE__);
+                return -1;
+            }
+
+            decode_len = xed_decoded_inst_get_length(&xedd);
+            if (!decode_len)
+                decode_len = 1;
+
+            switch (start_addr[0])
+            {
+            case 0x74: // jz
+            case 0x75: // jnz
+            case 0x7c: // jl
+            case 0xeb: // near jmp
+                break;
+
+            case 0xe8: // call
+                ret_addr = start_addr + decode_len;
+                vmp_stack_push(ret_addrs, ret_addr);
+                break;
+
+            case 0xe9: // jmp
+                break;
+
+            // case 0xf2: 
+            case 0xc3: // ret
+                vmp_stack_pop(ret_addrs);
+                break;
+
+                // IAT jump, call
+            case 0xff:
+                break;
+
+            case 0x0f:
+                break;
+
+            default:
+                start_addr += decode_len;
+                break;
+            }
+        }
+
+        return 0;
+    }
+
     int vmp_decoder_run(struct vmp_decoder *decoder)
     {
         int  inst_in_vmp;
@@ -455,8 +523,8 @@ extern "C" {
             memset(&flow_analy, 0, sizeof (flow_analy));
             ret = x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len, &flow_analy);
 
-            // Õâ¸ö·ÖÎö²¢·ÇÊ±´¿µÄ¾²Ì¬·ÖÎö£¬Êµ¼ÊÉÏËûÒ»Ö±ÔÚÔËËã£¬ËùÒÔÎÒÃÇÔÚÅöµ½Ìõ¼şÌø×ªÊ±£¬²»
-            // ·ÖÎöÄÇĞ©×ß²»µ½µÄ·ÖÖ§£¬µ«ÊÇÎÒÃÇ¿ÉÒÔÏÈ°ÑËû¼ÓÈë½øÀ´
+            // è¿™ä¸ªåˆ†æå¹¶éæ—¶çº¯çš„é™æ€åˆ†æï¼Œå®é™…ä¸Šä»–ä¸€ç›´åœ¨è¿ç®—ï¼Œæ‰€ä»¥æˆ‘ä»¬åœ¨ç¢°åˆ°æ¡ä»¶è·³è½¬æ—¶ï¼Œä¸
+            // åˆ†æé‚£äº›èµ°ä¸åˆ°çš„åˆ†æ”¯ï¼Œä½†æ˜¯æˆ‘ä»¬å¯ä»¥å…ˆæŠŠä»–åŠ å…¥è¿›æ¥
             if (flow_analy.jmp_type)
             {
                 uint8_t *addr = ((flow_analy.jmp_type == X86_COND_JMP) || flow_analy.cond ? flow_analy.true_addr : flow_analy.false_addr);
