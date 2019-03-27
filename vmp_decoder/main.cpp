@@ -53,7 +53,7 @@ extern "C" {
             }
         }
 
-        if (!cmd_mod->filename[0] || !cmd_mod->vmp_start_addr)
+        if (!cmd_mod->filename[0])
         {
             vmp_help();
             return 1;
@@ -83,7 +83,7 @@ extern "C" {
         // 依然无法解决崩溃时的信息漏掉的问题，采用了try, catch的方式，捕获到异常后，强行
         // 进行fflush
         // 我们采用第2种
-        freopen("vmp.log", "w", stdout);
+        //freopen("vmp.log", "w", stdout);
 
         vmp_decoder1 = vmp_decoder_create(cmd_mod.filename, cmd_mod.vmp_start_addr, cmd_mod.dump_pe);
         if (NULL == vmp_decoder1)
@@ -91,6 +91,8 @@ extern "C" {
             printf("main() failed with vmp_decoder_create(). %s:%d\n", __FILE__, __LINE__);
             return -1;
         }
+
+        exit(0);
 
         __try
         { 

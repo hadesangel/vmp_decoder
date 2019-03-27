@@ -26,7 +26,6 @@ extern "C" {
         char filename[MAX_PATH];
         struct pe_loader *pe_mod;
 
-        unsigned char* addr_start;
         xed_int64_t addr_end;
         xed_int64_t fake_base;
         xed_bool_t resync;  /* turn on/off symbol-based resynchronization */
@@ -43,8 +42,9 @@ extern "C" {
         unsigned char *inst_start;  // start of instruction to decode region
         unsigned char *inst_end;    // end of region
 
-        // where this region would live at runtime
-        unsigned char *runtime_vaddr;
+        unsigned char *entry_of_point;
+
+        unsigned char *vmp_act_start_vaddr;
         // where to start in program space, if not zero
         unsigned char *runtime_vaddr_disas_start;
         // where to stop in program space, if not zero
@@ -119,14 +119,15 @@ extern "C" {
     static int vmp_addr_in_vmp_section(struct vmp_decoder *decoder, unsigned char *addr);
     static struct vmp_cfg_node *vmp_cfg_find(struct vmp_decoder *decoder, uint8_t *id);
     static int vmp_cfg_add_inst(struct vmp_cfg_node *cfg, uint8_t *addr, int len);
+    int vmp_decoder_find_vmp_start_addr(struct vmp_decoder *decoder);
 #define vmp_sym_addr(_decoder, _address)  (UINT64)(pe_loader_fa2rva(_decoder->pe_mod, (DWORD64)_address))
 
-    struct vmp_decoder *vmp_decoder_create(char *filename, DWORD vmp_start_rva, int dump_pe)
+    struct vmp_decoder *vmp_decoder_create(char *filename, DWORD vmp_start_va, int dump_pe)
     {
         struct vmp_decoder *mod = (struct vmp_decoder *)calloc(1, sizeof(mod[0]));
         char bak_filename[128];
 
-        if (!vmp_start_rva || !filename)
+        if (!filename)
         {
             printf("vmp_decoder_create() failed with invalid param. %s:%d\n", __FILE__, __LINE__);
             return NULL;
@@ -157,16 +158,10 @@ extern "C" {
             return 0;
         }
 
-        if (!vmp_start_rva)
-        {
-            vmp_start_rva = pe_loader_entry_point(mod->pe_mod);
-        }
-        mod->vmp_start_va = vmp_start_rva;
-        strcpy_s(mod->filename, filename);
 
         mod->image_base = (unsigned char *)mod->pe_mod->image_base;
-        mod->addr_start = ((unsigned char *)mod->image_base + (vmp_start_rva - 0x400000));
-        mod->runtime_vaddr = mod->addr_start;
+
+        strcpy_s(mod->filename, filename);
 
         xed_tables_init();
         mod->mmode = XED_MACHINE_MODE_LEGACY_32;
@@ -193,7 +188,7 @@ extern "C" {
             mod->vmp_sections.counts++;
         }
 
-        if (0) //(!mod->vmp_sections.counts)
+        if (!mod->vmp_sections.counts)
         {
             printf("vmp_decoder_create() failed with not found vmp section. %s:%d\r\n", __FILE__, __LINE__);
             goto fail_label;
@@ -201,10 +196,28 @@ extern "C" {
 
         struct x86_emu_create_param param;
 
+#define FAKE_IMAGE_BASE                 0x400000
+
         param.pe_mod = mod->pe_mod;
         param.hlp = mod->debug.hlp;
 
         mod->emu = x86_emu_create(&param);
+
+        mod->entry_of_point = ((unsigned char *)mod->image_base + pe_loader_entry_point(mod->pe_mod));
+
+        if (!vmp_start_va)
+        {
+            vmp_start_va = vmp_decoder_find_vmp_start_addr (mod);
+        }
+
+        if (!vmp_start_va)
+        {
+            printf("vmp_decoder_create() failed with find vmp start address()");
+            goto fail_label;
+        }
+
+        mod->vmp_start_va = vmp_start_va;
+        mod->vmp_act_start_vaddr = ((unsigned char *)mod->image_base + (vmp_start_va - FAKE_IMAGE_BASE));
 
         return mod;
 
@@ -247,7 +260,7 @@ extern "C" {
         return ret;
     }
 
-    int vmp_decoder_dump_inst(struct vmp_decoder *decoder,
+    int vmp_decoder_format_inst(struct vmp_decoder *decoder,
         xed_decoded_inst_t *xedd, xed_uint64_t runtime_instruction_address, char *buf, int buf_size)
     {
         int ret;
@@ -347,6 +360,32 @@ extern "C" {
         return 0;
     }
 
+    int vmp_decoder_dump_inst(struct vmp_decoder *decoder, 
+        xed_decoded_inst_t *xedd,
+        int indent, unsigned char *inst, int inst_len)
+    {
+        char buf[128];
+        int i;
+
+        printf("[%p]\t[%08x]", inst, FAKE_IMAGE_BASE + ((int)(inst - decoder->image_base)));
+        for (i = 0; i < indent; i++)
+        {
+            printf("    ");
+        }
+        for (i = 0; i < inst_len; i++)
+        {
+            printf ("%02x ", inst[i]);
+        }
+        for (i = inst_len; i < 14; i++)
+        {
+            printf("   ");
+        }
+        vmp_decoder_format_inst(decoder, xedd, (xed_uint64_t)inst, buf, sizeof (buf) -1);
+        printf("[%s]\n", buf);
+
+        return 0;
+    }
+
     int vmp_decoder_find_vmp_start_addr(struct vmp_decoder *decoder)
     {
         xed_error_enum_t xed_error;
@@ -355,16 +394,24 @@ extern "C" {
 
         xed_decoded_inst_zero(&xedd);
         xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
-        int inst_in_vmp;
 
-        unsigned char *start_addr = decoder->runtime_vaddr;
+        unsigned char *start_addr = decoder->entry_of_point;
 
         unsigned char *ret_addrs[128], *ret_addr;
         int ret_addrs_i = -1;
 
-        while (1)
+        unsigned char *inst_queue[5] = {0};
+        int queue_i = -1;
+        int offset;
+
+#define counts_of_array(_a)             (sizeof (_a) / sizeof (_a[0]))
+
+        while (!vmp_addr_in_vmp_section(decoder, start_addr))
         {
-            inst_in_vmp = vmp_addr_in_vmp_section(decoder, start_addr);
+            xed_decoded_inst_zero(&xedd);
+            xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
+
+            inst_queue[++queue_i % counts_of_array(inst_queue)] = start_addr;
 
             xed_error = xed_decode(&xedd, start_addr, 15);
             if (xed_error != XED_ERROR_NONE)
@@ -378,39 +425,47 @@ extern "C" {
             if (!decode_len)
                 decode_len = 1;
 
+            (decoder->debug.dump_inst && vmp_decoder_dump_inst(decoder, &xedd, ret_addrs_i + 1, start_addr, decode_len));
+
             switch (start_addr[0])
             {
             case 0x74: // jz
             case 0x75: // jnz
             case 0x7c: // jl
             case 0xeb: // near jmp
+                start_addr += decode_len;
                 break;
 
             case 0xe8: // call
                 ret_addr = start_addr + decode_len;
                 vmp_stack_push(ret_addrs, ret_addr);
-                break;
-
             case 0xe9: // jmp
+                offset = mbytes_read_int_little_endian_4b(start_addr + 1);
+                start_addr += offset + decode_len;
                 break;
 
-            // case 0xf2: 
+            case 0xf2: // bnd
+                if (start_addr[1] != 0xc3)
+                {
+                    goto default_label;
+                }
             case 0xc3: // ret
-                vmp_stack_pop(ret_addrs);
-                break;
-
-                // IAT jump, call
-            case 0xff:
+            case 0xff: // IAT jmp
+                start_addr = vmp_stack_pop(ret_addrs);
+                assert(start_addr);
                 break;
 
             case 0x0f:
-                break;
-
             default:
+default_label:
                 start_addr += decode_len;
                 break;
             }
         }
+
+        decoder->vmp_start_addr = start_addr;
+        decoder->vmp_start_fa = (uint32_t)((DWORD64)start_addr - (DWORD64)decoder->pe_mod->image_base);
+        printf("Wooow, we found vmp start address. %s:%d\r\n", __FILE__, __LINE__);
 
         return 0;
     }
@@ -420,11 +475,10 @@ extern "C" {
         int  inst_in_vmp;
         xed_error_enum_t xed_error;
         xed_decoded_inst_t xedd;
-        int decode_len, ok = 0, j, ret;
+        int decode_len, ok = 0, ret;
         struct vmp_cfg_node *cfg_node_stack[128];
         int cfg_node_stack_i = -1;
         struct vmp_cfg_node *cur_cfg_node = NULL, *t_cfg_node;
-        char buf[64];
         static int vmp_start = 0, not_empty = 0;
         x86_emu_flow_analysis_t flow_analy;
 
@@ -433,24 +487,20 @@ extern "C" {
             decoder->dot_graph_output = fopen("1.dot", "w");
         }
 
+        unsigned char *vmp_run_addr = decoder->vmp_act_start_vaddr;
+
+        vmp_start = 1;
+
         while (1)
         {
             inst_in_vmp = 0;
             xed_decoded_inst_zero(&xedd);
             xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
 
-            inst_in_vmp = vmp_addr_in_vmp_section(decoder, decoder->runtime_vaddr);
+            inst_in_vmp = vmp_addr_in_vmp_section(decoder, vmp_run_addr);
 
             if (inst_in_vmp)
             {
-                if (!vmp_start)
-                {
-                    decoder->vmp_start_addr = decoder->runtime_vaddr;
-                    decoder->vmp_start_fa = (uint32_t)((DWORD64)decoder->runtime_vaddr - (DWORD64)decoder->pe_mod->image_base);
-                    vmp_start = 1;
-                    printf("Wooow, we found vmp start address. %s:%d\r\n", __FILE__, __LINE__);
-                }
-
                 if (!cur_cfg_node->debug.vmp)
                 {
                     vmp_cfg_node_update_vmp(cur_cfg_node, ++decoder->vmp_sections.call_counts);
@@ -475,7 +525,7 @@ extern "C" {
                 break;
             }
 
-            xed_error = xed_decode(&xedd, decoder->runtime_vaddr, 15);
+            xed_error = xed_decode(&xedd, vmp_run_addr, 15);
             if (xed_error != XED_ERROR_NONE)
             {
                 printf("vmp_decoder_run() failed with (%s)xed_decode(). %s:%d\n",
@@ -487,28 +537,11 @@ extern "C" {
             if (!decode_len)
                 decode_len = 1;
 
-            if (decoder->debug.dump_inst)
-            {
-                printf("[%p]\t[%08x]", decoder->runtime_vaddr, 0x400000 + pe_loader_fa2rva(decoder->pe_mod, (uint64_t)decoder->runtime_vaddr));
-                for (j = 0; j < cfg_node_stack_i; j++)
-                {
-                    printf("    ");
-                }
-                for (j = 0; j < decode_len; j++)
-                {
-                    printf ("%02x ", decoder->runtime_vaddr[j]);
-                }
-                for (j = decode_len; j < 14; j++)
-                {
-                    printf("   ");
-                }
-                vmp_decoder_dump_inst(decoder, &xedd, (xed_uint64_t)decoder->runtime_vaddr, buf, sizeof (buf) -1);
-                printf("[%s]\n", buf);
-            }
+            (decoder->debug.dump_inst && vmp_decoder_dump_inst(decoder, &xedd, cfg_node_stack_i, vmp_run_addr, decode_len));
 
             if (!cur_cfg_node)
             {
-                if (NULL == (cur_cfg_node = vmp_cfg_create(decoder, decoder->runtime_vaddr)))
+                if (NULL == (cur_cfg_node = vmp_cfg_create(decoder, vmp_run_addr)))
                 {
                     printf("vmp_decoder_run() failed when vmp_cfg_create(). %s:%d\r\n", __FILE__, __LINE__);
                     return NULL;
@@ -519,9 +552,8 @@ extern "C" {
             cur_cfg_node = vmp_stack_top(cfg_node_stack);
             assert(cur_cfg_node);
 
-
             memset(&flow_analy, 0, sizeof (flow_analy));
-            ret = x86_emu_run(decoder->emu, decoder->runtime_vaddr, decode_len, &flow_analy);
+            ret = x86_emu_run(decoder->emu, vmp_run_addr, decode_len, &flow_analy);
 
             // 这个分析并非时纯的静态分析，实际上他一直在运算，所以我们在碰到条件跳转时，不
             // 分析那些走不到的分支，但是我们可以先把他加入进来
@@ -537,13 +569,13 @@ extern "C" {
                     t_cfg_node = vmp_cfg_create(decoder, flow_analy.true_addr);
                     cur_cfg_node->jmp_node = t_cfg_node;
                     cur_cfg_node = t_cfg_node;
-                    decoder->runtime_vaddr = flow_analy.true_addr;
+                    vmp_run_addr = flow_analy.true_addr;
                 }
             }
             else
             {
-                decoder->runtime_vaddr += decode_len;
-                vmp_cfg_add_inst(cur_cfg_node, decoder->runtime_vaddr, decode_len);
+                vmp_run_addr += decode_len;
+                vmp_cfg_add_inst(cur_cfg_node, vmp_run_addr, decode_len);
             }
         }
 
