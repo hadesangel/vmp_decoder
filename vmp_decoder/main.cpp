@@ -92,8 +92,6 @@ extern "C" {
             return -1;
         }
 
-        exit(0);
-
         __try
         { 
             if (vmp_decoder_run(vmp_decoder1))

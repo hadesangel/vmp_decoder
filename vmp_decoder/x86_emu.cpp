@@ -1,4 +1,4 @@
-
+ï»¿
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -77,10 +77,10 @@ int x86_emu_clc(struct x86_emu_mod *mod, uint8_t *code, int len);
 static uint32_t x86_emu_reg_val_get(int oper_siz, struct x86_emu_reg *reg);
 static uint32_t x86_emu_reg_val_get2(struct x86_emu_mod *mod, int reg_type);
 
-/* ÔÚCPUÄ£ÄâÆ÷µÄÄÚ²¿£¬ËùÓĞµÄÄÚ´æ·ÃÎÊ£¬¶¼ĞèÒª×öÒ»²ãÄ£ÄâÆ÷ÄÚ´æµ½ÕæÊµµØÖ·µÄÓ³Éä²ÅĞĞ¡£
- * ×öµÄ×ª»»ÓĞÒÔÏÂ¼¸ÖÖ£º
- * 1. 32Î»µØÖ·µ½64Î»µØÖ·µÄ×ª»»
- * 2. PEÎÄ¼şÄÚ²¿ Ïà¶ÔÎÄ¼şµØÖ· µ½ rva µÄ×ª»» */
+/* åœ¨CPUæ¨¡æ‹Ÿå™¨çš„å†…éƒ¨ï¼Œæ‰€æœ‰çš„å†…å­˜è®¿é—®ï¼Œéƒ½éœ€è¦åšä¸€å±‚æ¨¡æ‹Ÿå™¨å†…å­˜åˆ°çœŸå®åœ°å€çš„æ˜ å°„æ‰è¡Œã€‚
+ * åšçš„è½¬æ¢æœ‰ä»¥ä¸‹å‡ ç§ï¼š
+ * 1. 32ä½åœ°å€åˆ°64ä½åœ°å€çš„è½¬æ¢
+ * 2. PEæ–‡ä»¶å†…éƒ¨ ç›¸å¯¹æ–‡ä»¶åœ°å€ åˆ° rva çš„è½¬æ¢ */
 static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t addr);
 
 #define X86_EMU_REG_IS_KNOWN(_op_siz, _reg)                 (((_op_siz == 32) && ((_reg)->known == 0xffffffff)) || ((_op_siz == 16) && (((_reg)->known & 0xffff) == 0xffff)))
@@ -280,22 +280,22 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
 
     mod->word_size = 32;
 
-    // ÒòÎªÏµÍ³µÄ¶ÑÕ»ÊÇ´ÓÎ²²¿Ôö³¤µÄ£¬ËùÒÔÎÒÃÇÕâÀïÒ²´ÓÎ²²¿¿ªÊ¼Ôö³¤
-    // ÕâÑù»áµ¼ÖÂÒ»¸öºó¹ûÄÇ¾ÍÊÇ¶ÑÕ»ÎŞ·¨À©³ä£¬ÒÔºóÔÚ¸Ã°É¡£TODO:stack
-    // Ä£ÄâÆ÷µÄ¶ÑÕ»·ÖÎª2²¿·Ö£¬Ò»²¿·ÖÓÃÀ´´æÊı¾İ£¬Ò»²¿·ÖÓÃÀ´´æ·Å known
-    // ĞÅÏ¢£¬ÒòÎªÎÒÃÇÊÇ¾²Ì¬·ÖÎö£¬ÓÃÀ´È¥³ıËÀ´úÂëºÍ³£Á¿¼ÆËãµÄ£¬±ØĞëµÃ
-    // ÔÚ³ÌĞòµÄÄ³¸öµãÉÏÈ·ÈÏµ±Ç°Õâ¸ö±äÁ¿ÊÇ·ñ¿É¼ÆËã£¬ĞèÒªÇå³şÕâ¸ö±äÁ¿
-    // ÊÇ·ñÊÇKnownµÄ¡£
+    // å› ä¸ºç³»ç»Ÿçš„å †æ ˆæ˜¯ä»å°¾éƒ¨å¢é•¿çš„ï¼Œæ‰€ä»¥æˆ‘ä»¬è¿™é‡Œä¹Ÿä»å°¾éƒ¨å¼€å§‹å¢é•¿
+    // è¿™æ ·ä¼šå¯¼è‡´ä¸€ä¸ªåæœé‚£å°±æ˜¯å †æ ˆæ— æ³•æ‰©å……ï¼Œä»¥ååœ¨è¯¥å§ã€‚TODO:stack
+    // æ¨¡æ‹Ÿå™¨çš„å †æ ˆåˆ†ä¸º2éƒ¨åˆ†ï¼Œä¸€éƒ¨åˆ†ç”¨æ¥å­˜æ•°æ®ï¼Œä¸€éƒ¨åˆ†ç”¨æ¥å­˜æ”¾ known
+    // ä¿¡æ¯ï¼Œå› ä¸ºæˆ‘ä»¬æ˜¯é™æ€åˆ†æï¼Œç”¨æ¥å»é™¤æ­»ä»£ç å’Œå¸¸é‡è®¡ç®—çš„ï¼Œå¿…é¡»å¾—
+    // åœ¨ç¨‹åºçš„æŸä¸ªç‚¹ä¸Šç¡®è®¤å½“å‰è¿™ä¸ªå˜é‡æ˜¯å¦å¯è®¡ç®—ï¼Œéœ€è¦æ¸…æ¥šè¿™ä¸ªå˜é‡
+    // æ˜¯å¦æ˜¯Knownçš„ã€‚
     mod->stack.top = 128 * 1024;
     mod->stack.size = 128 * 1024;
     mod->stack.known = (uint8_t *)calloc(1, mod->stack.size);
     mod->stack.data = (uint8_t *)calloc(1, mod->stack.size);
 
-    // esp¼Ä´æÆ÷±È½ÏÌØ±ğ£¬ÀíÂÛÉÏËùÓĞµÄ¼Ä´æÆ÷¿ªÊ¼Ê±¶¼ÊÇunknown×´Ì¬µÄ
-    // µ«ÊÇÒòÎªÎÒÃÇÊµ¼ÊÔÚ²Ù×÷¶ÑÕ»Ê±£¬ÒÀÀµÓÚesp£¬ËùÒÔ¼ÙÉèÒ»¿ªÊ¼esp
-    // ÓĞÖµ¡£ÁíÍâ¿´ÆğÀ´Ò»Ğ©±È½ÏĞ¡µÄ³ÌĞò£¬ËäÈ»ÓÃ64Î»±àÒë£¬µ«ÊÇËûÃÇµÄ
-    // ¸ß32Î»¶¼ÊÇÒ»ÑùµÄ£¬ËùÒÔÎÒÃÇÕâÀïÖ±½Ó°Ñ¸ß32Î»½Òµô£¬Ö»ÓĞÔÚĞèÒª·ÃÎÊ
-    // ÄÚ´æµÄÊ±ºò£¬²Å°ÑÕâ¸öÖµ¼ÓÉÏÈ¥£¬¾ßÌå¿ÉÒÔ¿´x86_emu_access_mem
+    // espå¯„å­˜å™¨æ¯”è¾ƒç‰¹åˆ«ï¼Œç†è®ºä¸Šæ‰€æœ‰çš„å¯„å­˜å™¨å¼€å§‹æ—¶éƒ½æ˜¯unknownçŠ¶æ€çš„
+    // ä½†æ˜¯å› ä¸ºæˆ‘ä»¬å®é™…åœ¨æ“ä½œå †æ ˆæ—¶ï¼Œä¾èµ–äºespï¼Œæ‰€ä»¥å‡è®¾ä¸€å¼€å§‹esp
+    // æœ‰å€¼ã€‚å¦å¤–çœ‹èµ·æ¥ä¸€äº›æ¯”è¾ƒå°çš„ç¨‹åºï¼Œè™½ç„¶ç”¨64ä½ç¼–è¯‘ï¼Œä½†æ˜¯ä»–ä»¬çš„
+    // é«˜32ä½éƒ½æ˜¯ä¸€æ ·çš„ï¼Œæ‰€ä»¥æˆ‘ä»¬è¿™é‡Œç›´æ¥æŠŠé«˜32ä½æ­æ‰ï¼Œåªæœ‰åœ¨éœ€è¦è®¿é—®
+    // å†…å­˜çš„æ—¶å€™ï¼Œæ‰æŠŠè¿™ä¸ªå€¼åŠ ä¸Šå»ï¼Œå…·ä½“å¯ä»¥çœ‹x86_emu_access_mem
     mod->esp.u.r32 = (uint32_t)((uint64_t)mod->stack.data & UINT_MAX) + mod->stack.top;
     mod->esp.known = UINT_MAX;
 
@@ -309,7 +309,7 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
     mod->hlp = param->hlp;
 
     mod->eflags.known = UINT_MAX;
-    // ¿´ÆğÀ´ÏµÍ³Ä¬ÈÏEFLAGSÀïµÄB1ºÍIEFÊÇ¿ªÆôµÄ
+    // çœ‹èµ·æ¥ç³»ç»Ÿé»˜è®¤EFLAGSé‡Œçš„B1å’ŒIEFæ˜¯å¼€å¯çš„
     mod->eflags.eflags |= XE_EFLAGS_B1;
     mod->eflags.eflags |= XE_EFLAGS_IEF;
 
@@ -479,7 +479,7 @@ int x86_emu_popfd(struct x86_emu_mod *mod, uint8_t *code, int len)
     return 0;
 }
 
-// ÓÒÒÆÖ¸ÁîµÄ²Ù×÷Êı²»Ö¹ÊÇ¼Ä´æÆ÷£¬µ«ÊÇÕâ¸ö°æ±¾ÖĞ£¬ÏÈÖ»´¦Àí¼Ä´æÆ÷
+// å³ç§»æŒ‡ä»¤çš„æ“ä½œæ•°ä¸æ­¢æ˜¯å¯„å­˜å™¨ï¼Œä½†æ˜¯è¿™ä¸ªç‰ˆæœ¬ä¸­ï¼Œå…ˆåªå¤„ç†å¯„å­˜å™¨
 int x86_emu_shrd (struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     int cts;
@@ -543,7 +543,7 @@ int x86_emu_rol(struct x86_emu_mod *mod, uint8_t *code, int len)
     switch (code[0])
     {
     case 0xc0:
-        // ²»ÒªÎÊÎÒÎªÊ²Ã´ÕâÑùËãcounts£¬°×Æ¤ÊéÉÏÕâÑùĞ´µÄ
+        // ä¸è¦é—®æˆ‘ä¸ºä»€ä¹ˆè¿™æ ·ç®—countsï¼Œç™½çš®ä¹¦ä¸Šè¿™æ ·å†™çš„
         dst8 = x86_emu_reg8_get_ptr(mod, MODRM_GET_RM(code[1]));
         mod->inst.oper_size = 8;
         X86_EMU_ROL(mod->inst.oper_size, code[2], dst8[0]);
@@ -668,7 +668,7 @@ int x86_emu_rcl(struct x86_emu_mod *mod, uint8_t *code, int len)
 
         X86_EMU_RCL(8, count, dst8[0]);
 
-        // ÔÚ°×Æ¤ÊéÉÏ»¹ÓĞÒ»¶ÎÊÇ¼ÆËãoverflow flagµÄ£¬ÎÒÃ»¼Ó
+        // åœ¨ç™½çš®ä¹¦ä¸Šè¿˜æœ‰ä¸€æ®µæ˜¯è®¡ç®—overflow flagçš„ï¼Œæˆ‘æ²¡åŠ 
         // todo:
         break;
 
@@ -813,7 +813,7 @@ int x86_emu_neg(struct x86_emu_mod *mod, uint8_t *code, int len)
                 x86_emu_cf_set(mod, 1);
             }
 
-            // todo, uint32_t¼Ó¸ººÅ£¬ÄÜ·ñÕıÈ·µÄ×ª²¹Âë
+            // todo, uint32_tåŠ è´Ÿå·ï¼Œèƒ½å¦æ­£ç¡®çš„è½¬è¡¥ç 
             if (mod->inst.oper_size == 32)
             {
                 dst_reg->u.r32 = -(int32_t)dst_reg->u.r32;
@@ -918,7 +918,7 @@ int x86_emu_bt_oper(struct x86_emu_mod *mod, uint8_t *code, int len, int oper)
     x86_emu_modrm_analysis2(mod, code, 0, NULL, NULL, &src_imm);
 
     dst_reg = x86_emu_reg_get (mod, MODRM_GET_RM(code[0]));
-    /* Ô´²Ù×÷ÊıÒÑÖªµÄÇé¿öÏÂ£¬Ö»ÒªÄ¿µÄ²Ù×÷µÄsrcÎ»bitÊÇ¾²Ì¬¿ÉÈ¡µÄ£¬ÄÇÃ´¾Í¿ÉÒÔ¼ÆËãµÄ */
+    /* æºæ“ä½œæ•°å·²çŸ¥çš„æƒ…å†µä¸‹ï¼Œåªè¦ç›®çš„æ“ä½œçš„srcä½bitæ˜¯é™æ€å¯å–çš„ï¼Œé‚£ä¹ˆå°±å¯ä»¥è®¡ç®—çš„ */
     if (X86_EMU_REG_IS_KNOWN (mod->inst.oper_size, &src_imm.u.reg)
         && (1 | (src_val = x86_emu_reg_val_get(mod->inst.oper_size, &src_imm.u.reg)))
         && X86_EMU_REG_BIT_IS_KNOWN(mod->inst.oper_size, dst_reg, src_val))
@@ -1662,8 +1662,8 @@ int x86_emu_cmovs(struct x86_emu_mod *mod, uint8_t *code, int len)
     return 0;
 }
 
-// ±¾À´¼ÆËãÕâ¸ö×´Ì¬»á´øÈëcfµÄ±êÖ¾µÄ£¬ºóÀ´·¢ÏÖÃ»ÓĞ±ØÒª£¬¶øÇÒÔÚ¼ÆËã
-// ¼õ·¨Ê±×´Ì¬²»¶Ô£¬Ö±½ÓÈÃAPIÔÚÉÏ²ã¼ÆËãÁË´ø½øÀ´
+// æœ¬æ¥è®¡ç®—è¿™ä¸ªçŠ¶æ€ä¼šå¸¦å…¥cfçš„æ ‡å¿—çš„ï¼Œåæ¥å‘ç°æ²¡æœ‰å¿…è¦ï¼Œè€Œä¸”åœ¨è®¡ç®—
+// å‡æ³•æ—¶çŠ¶æ€ä¸å¯¹ï¼Œç›´æ¥è®©APIåœ¨ä¸Šå±‚è®¡ç®—äº†å¸¦è¿›æ¥
 static int x86_emu_add_modify_status(struct x86_emu_mod *mod, uint32_t dst, uint32_t src, int borrow)
 {
     int oper_siz = mod->inst.oper_size;
@@ -1917,7 +1917,7 @@ int x86_emu_cmp(struct x86_emu_mod *mod, uint8_t *code, int len)
     case 0x3a:
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_REG(code[1]));
         src_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
-        //todo:´¦ÀíÏÂKNOWN×´Ì¬
+        //todo:å¤„ç†ä¸‹KNOWNçŠ¶æ€
         x86_emu_add_modify_status(mod,
             x86_emu_reg8_get(dst_reg, MODRM_GET_REG(code[1])),
             - (int32_t)x86_emu_reg8_get(src_reg, MODRM_GET_RM(code[1])), 1);
@@ -2029,7 +2029,7 @@ int x86_emu_test(struct x86_emu_mod *mod, uint8_t *code, int len)
             x86_emu_reg_val_get(mod->inst.oper_size, src_reg));
         break;
 
-        // ÔÚ²Ù×÷ÊıÎª8µÄÇé¿öÏÂ£¬·ÃÎÊEAX¼Ä´æÆ÷ÊÇ·ÃÎÊAL
+        // åœ¨æ“ä½œæ•°ä¸º8çš„æƒ…å†µä¸‹ï¼Œè®¿é—®EAXå¯„å­˜å™¨æ˜¯è®¿é—®AL
     case 0xa8:
         mod->inst.oper_size = 8;
         dst_type = OPERAND_TYPE_REG_EAX;
@@ -2071,8 +2071,8 @@ int x86_emu_not(struct x86_emu_mod *mod, uint8_t *code, int len)
         dst_reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
         if (X86_EMU_REG_IS_KNOWN(mod->inst.oper_size, dst_reg))
         {
-            // Õâ¸öº¯Êıµ÷ÓÃµÄ²»ÔõÃ´ºÍ¹æ·¶£¬ Êµ¼ÊÉÏÊÇÀûÓÃÁË×Ö·û´®µÄÆ´½Ó¹æÔò¶Ô¼Ä´æÆ÷È¡·´ÁË
-            // ºóÃæµÄ~£¬Êµ¼ÊÉÏ²»ÊÇ=µÄÒ»²¿·Ö£¬¶øÊÇdst_regµÄÒ»²¿·Ö£¬~dst_reg
+            // è¿™ä¸ªå‡½æ•°è°ƒç”¨çš„ä¸æ€ä¹ˆå’Œè§„èŒƒï¼Œ å®é™…ä¸Šæ˜¯åˆ©ç”¨äº†å­—ç¬¦ä¸²çš„æ‹¼æ¥è§„åˆ™å¯¹å¯„å­˜å™¨å–åäº†
+            // åé¢çš„~ï¼Œå®é™…ä¸Šä¸æ˜¯=çš„ä¸€éƒ¨åˆ†ï¼Œè€Œæ˜¯dst_regçš„ä¸€éƒ¨åˆ†ï¼Œ~dst_reg
             x86_emu_dynam_oper(dst_reg, =~, dst_reg);
         }
 
@@ -2353,6 +2353,9 @@ static int x86_emu_call(struct x86_emu_mod *mod, uint8_t *code, int len)
     case 0xe8:
         ret_addr = (uint64_t)(code + len);
         x86_emu__push(mod, (uint8_t *)&known, (uint8_t *)&ret_addr, mod->word_size/8);
+
+        mod->analys.jmp_type = X86_JMP;
+        mod->analys.true_addr = mod->inst.start + mod->inst.len + mbytes_read_int_little_endian_4b(code + 1);
         break;
 
     default:
@@ -2365,9 +2368,16 @@ static int x86_emu_call(struct x86_emu_mod *mod, uint8_t *code, int len)
 static int x86_emu_jmp(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     struct x86_emu_reg *reg;
+    int offset;
 
     switch (code[0])
     {
+    case 0xe9:
+        offset = mbytes_read_int_little_endian_4b(code + 1);
+        mod->analys.jmp_type = X86_JMP;
+        mod->analys.true_addr = mod->inst.start + mod->inst.len + offset;
+        break;
+
     case 0xff:
         reg = x86_emu_reg_get(mod, MODRM_GET_RM(code[1]));
         if (X86_EMU_REG_IS_KNOWN(mod->inst.oper_size, reg))
@@ -2381,6 +2391,10 @@ static int x86_emu_jmp(struct x86_emu_mod *mod, uint8_t *code, int len)
                 mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
                 x86_emu__pop(mod, 4);
             }
+
+            mod->analys.jmp_type = X86_JMP;
+            mod->analys.true_addr = x86_emu_mem_fix(mod->eip.u.r32);
+
             return X86_EMU_UPDATE_EIP;
         }
         else
@@ -2389,7 +2403,7 @@ static int x86_emu_jmp(struct x86_emu_mod *mod, uint8_t *code, int len)
         }
         break;
 
-        //Õâ¸öµØ·½²»ÓÃ³öÁĞ±ğµÄjmp£¬ËùÒÔ²»ÓÃ·µ»Ø-1
+        //è¿™ä¸ªåœ°æ–¹ä¸ç”¨å‡ºåˆ—åˆ«çš„jmpï¼Œæ‰€ä»¥ä¸ç”¨è¿”å›-1
     }
     return 0;
 }
@@ -2409,6 +2423,9 @@ static int x86_emu_ret(struct x86_emu_mod *mod, uint8_t *code, int len)
             mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
             x86_emu__pop(mod, 4);
         }
+
+        mod->analys.jmp_type = X86_JMP;
+        mod->analys.true_addr = x86_emu_mem_fix(mod->eip.u.r32);
         break;
 
     default:
@@ -2650,7 +2667,6 @@ static int x86_emu_jnbe(struct x86_emu_mod *mod, uint8_t *code, int len)
             mod->eip.u.r32 = (((uint64_t)mod->inst.start) & UINT_MAX)
                 + mod->inst.len + code[1];
             mod->eip.known = UINT_MAX;
-            return X86_EMU_UPDATE_EIP;
         }
         break;
 
@@ -2660,13 +2676,16 @@ static int x86_emu_jnbe(struct x86_emu_mod *mod, uint8_t *code, int len)
             mod->eip.u.r32 = (((uint64_t) mod->inst.start) & UINT_MAX)
                 + mod->inst.len + x86_emu_dynam_le_read(mod->inst.oper_size, code + 1);
             mod->eip.known = UINT_MAX;
-            return X86_EMU_UPDATE_EIP;
         }
         break;
 
     default:
         return -1;
     }
+
+    mod->analys.jmp_type = X86_JMP;
+    mod->analys.true_addr = x86_emu_mem_fix(mod->eip.u.r32);
+
     return 0;
 }
 
@@ -2786,6 +2805,7 @@ static inline int x86_emu_inst_init(struct x86_emu_mod *mod, uint8_t *inst, int 
     mod->inst.rep = 0;
     mod->inst.access_addr = 0;
     mod->inst.access_addr2 = 0;
+    memset(&mod->analys, 0, sizeof (mod->analys));
 
     return 0;
 }
@@ -2878,8 +2898,8 @@ struct x86_emu_on_inst_item x86_emu_inst_tab[] =
     { {0x8b, 0, 0}, -1, x86_emu_mov },
     { {0x8d, 0, 0}, -1, x86_emu_lea },
     { {0x8f, 0, 0}, -1, x86_emu_pop },
-    // xchgµÄÖ¸Áî¸ñÊ½ÆäÖĞÒ»¸öÊÇ 90 + rw£¬ÒòÎªxchg eax, eax£¬
-    // ÊÇ²»×öÈÎºÎ¸Ä¶¯£¬ËùÒÔÂß¼­ÉÏÀ´Ëµ xchg eax, eax == nop
+    // xchgçš„æŒ‡ä»¤æ ¼å¼å…¶ä¸­ä¸€ä¸ªæ˜¯ 90 + rwï¼Œå› ä¸ºxchg eax, eaxï¼Œ
+    // æ˜¯ä¸åšä»»ä½•æ”¹åŠ¨ï¼Œæ‰€ä»¥é€»è¾‘ä¸Šæ¥è¯´ xchg eax, eax == nop
     { {0x90, 0, 0}, -1, x86_emu_nop },
     { {0x91, 0, 0}, -1, x86_emu_xchg },
     { {0x92, 0, 0}, -1, x86_emu_xchg },
@@ -3031,10 +3051,10 @@ int x86_emu_dump (struct x86_emu_mod *mod)
         mod->eflags.known = UINT_MAX;
     }
 #endif
-    // todo:µ÷ÊÔ´úÂë
-    // vmp_jmp 1244³ö´í£¬Ö¸Áî45288
+    // todo:è°ƒè¯•ä»£ç 
+    // vmp_jmp 1244å‡ºé”™ï¼ŒæŒ‡ä»¤45288
     // vmp_jmp 1217
-    // inst[41522]µÄeax¿´ÆğÀ´»áÊÜeflagsµÄÓ°Ïì
+    // inst[41522]çš„eaxçœ‹èµ·æ¥ä¼šå—eflagsçš„å½±å“
 #if 0
     if (mod->inst.count == 41522)
     {
@@ -3069,7 +3089,7 @@ int x86_emu_dump (struct x86_emu_mod *mod)
     uint8_t *stack_start, *stack_end;
     int cts;
 
-    // ËÄ×Ö½ÚµØÖ·¶ÔÆë
+    // å››å­—èŠ‚åœ°å€å¯¹é½
     stack_start = (uint8_t *)(mod->addr64_prefix | (uint64_t)(mod->esp.u.r32 & ~3));
     stack_end = mod->stack.data + mod->stack.size;
 
@@ -3087,25 +3107,27 @@ int x86_emu_dump (struct x86_emu_mod *mod)
     return 0;
 }
 
-int x86_emu_run(struct x86_emu_mod *mod, uint8_t *addr, int len, x86_emu_flow_analysis_t *analy)
+int x86_emu_run(struct x86_emu_mod *mod, uint8_t *addr, int len, x86_emu_flow_analysis_t **analy)
 {
     int code_i = 1, ret = -1;
     struct x86_emu_on_inst_item *array = x86_emu_inst_tab;
 
     x86_emu_inst_init(mod, addr, len);
 
+    *analy = &mod->analys;
+
     mod->inst.count++;
 
-    // x86Ä£ÄâÆ÷µÄÖ÷Ñ­»·ĞèÒª¶ÔÖ¸Áî¼¯±È½ÏÉîºñµÄÀí½â
-    // Ó¢ÎÄ×¢ÊÍÖ±½Ó³¬×Ô°×Æ¤Êé£¬ÕâÑù¿ÉÒÔ¼õÉÙ²éÑ¯µÄ¹¤×÷Á¿£¬´ó¼Ò¿ÉÒÔ·ÅĞÄ¹Û¿´
-    // ÖĞÎÄ×¢ÊÍÀ´×ÔÓÚ×÷Õß
+    // x86æ¨¡æ‹Ÿå™¨çš„ä¸»å¾ªç¯éœ€è¦å¯¹æŒ‡ä»¤é›†æ¯”è¾ƒæ·±åšçš„ç†è§£
+    // è‹±æ–‡æ³¨é‡Šç›´æ¥è¶…è‡ªç™½çš®ä¹¦ï¼Œè¿™æ ·å¯ä»¥å‡å°‘æŸ¥è¯¢çš„å·¥ä½œé‡ï¼Œå¤§å®¶å¯ä»¥æ”¾å¿ƒè§‚çœ‹
+    // ä¸­æ–‡æ³¨é‡Šæ¥è‡ªäºä½œè€…
 
     // Instruction prefixes are divided into four groups, each with a set of allowable prefix codex.
     // For each instruction, it is only useful to include up to one prefix code from each of the four
     // groups (Groups 1, 2, 3, 4).
     switch (addr[0])
     {
-        // ĞŞ¸Ä¶Î¼Ä´æÆ÷Îªss£¬Ò»°ãÀ´Ëµ²»Ó°Ïì£¬ÒòÎªÄ¬ÈÏ¶Î¼Ä´æÆ÷¾ÍÊÇss
+        // ä¿®æ”¹æ®µå¯„å­˜å™¨ä¸ºssï¼Œä¸€èˆ¬æ¥è¯´ä¸å½±å“ï¼Œå› ä¸ºé»˜è®¤æ®µå¯„å­˜å™¨å°±æ˜¯ss
     case 0x36:
         break;
 
@@ -3189,11 +3211,11 @@ static int modrm_rm_tabl[] = {
     OPERAND_TYPE_REG_EDI  // 111
 };
 
-// immÊÇ´«³ö²ÎÊı£¬µ±src¼ÆËãÍê±ÏÒÔºó£¬»á·ÅÈëµ½immÖĞ´«³ö
-// µ±ÎÒÃÇÅĞ¶ÏÖ¸ÁîµÄ²Ù×÷Êı³¤¶ÈÊ±£¬³ıÁË¸ù¾İÖ¸Áî±¾ÉíµÄ³¤¶ÈÇ°×ºÒÔÍâ
-// »¹ÒªÅĞ¶ÏÖ¸Áî±¾ÉíÊÇ·ñÓĞÏŞÖÆÖ¸Áî³¤¶È£¬±ÈÈç:
+// immæ˜¯ä¼ å‡ºå‚æ•°ï¼Œå½“srcè®¡ç®—å®Œæ¯•ä»¥åï¼Œä¼šæ”¾å…¥åˆ°immä¸­ä¼ å‡º
+// å½“æˆ‘ä»¬åˆ¤æ–­æŒ‡ä»¤çš„æ“ä½œæ•°é•¿åº¦æ—¶ï¼Œé™¤äº†æ ¹æ®æŒ‡ä»¤æœ¬èº«çš„é•¿åº¦å‰ç¼€ä»¥å¤–
+// è¿˜è¦åˆ¤æ–­æŒ‡ä»¤æœ¬èº«æ˜¯å¦æœ‰é™åˆ¶æŒ‡ä»¤é•¿åº¦ï¼Œæ¯”å¦‚:
 // 0a da            [or dl, al]
-// 0aÖ¸Áî±¾Éí¾Í¹æ¶¨ÁË²Ù×÷ÊıÊÇ8bit¼Ä´æÆ÷
+// 0aæŒ‡ä»¤æœ¬èº«å°±è§„å®šäº†æ“ä½œæ•°æ˜¯8bitå¯„å­˜å™¨
 static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur,
     int oper_size1, int *dst_type1, int *src_type1, x86_emu_operand_t *operand1)
 {
@@ -3233,7 +3255,7 @@ static int x86_emu_modrm_analysis2(struct x86_emu_mod *mod, uint8_t *cur,
         mod->inst.access_addr = imm.u.mem.addr32;
         break;
 
-        // MODRMÖĞMODÎª0b01, 0b11´¦Àí»ù±¾ÊÇÒ»ÑùµÄ£¬³ıÁË²Ù×÷µÄÁ¢¼´Êı
+        // MODRMä¸­MODä¸º0b01, 0b11å¤„ç†åŸºæœ¬æ˜¯ä¸€æ ·çš„ï¼Œé™¤äº†æ“ä½œçš„ç«‹å³æ•°
     case 1:
     case 2:
 X86_EMU_SIB_LABEL:
@@ -3507,19 +3529,19 @@ static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
     uint8_t *t_addr = NULL;
     char sym_name[128];
 
-    // ÔÚCPUµÄÄ£ÄâÆ÷ÄÚ²¿£¬ÔİÊ±ÓĞÒÔÏÂ¼¸ÖÖÀàĞÍµÄµØÖ·
-    // 1. ¶ÑÕ»ÄÚµÄµØÖ·£¬·ÃÎÊ¶ÑÕ»Ê±ĞèÒªÊ¹ÓÃ
-    // 2. PEÎÄ¼şÄÚµÄµØÖ·£¬jmpÊ±ĞèÒª
-    // 3. ·ÃÎÊµ½ÁËIATµØÖ·£¬±ÈÈç·ÃÎÊtime()£¬ÄÇÃ´Õâ¸öµØÖ·ÔÚIAT±íÄÚ
+    // åœ¨CPUçš„æ¨¡æ‹Ÿå™¨å†…éƒ¨ï¼Œæš‚æ—¶æœ‰ä»¥ä¸‹å‡ ç§ç±»å‹çš„åœ°å€
+    // 1. å †æ ˆå†…çš„åœ°å€ï¼Œè®¿é—®å †æ ˆæ—¶éœ€è¦ä½¿ç”¨
+    // 2. PEæ–‡ä»¶å†…çš„åœ°å€ï¼Œjmpæ—¶éœ€è¦
+    // 3. è®¿é—®åˆ°äº†IATåœ°å€ï¼Œæ¯”å¦‚è®¿é—®time()ï¼Œé‚£ä¹ˆè¿™ä¸ªåœ°å€åœ¨IATè¡¨å†…
 
-    // ¿ÉÄÜÊÇÄÚ²¿µÄµØÖ·
+    // å¯èƒ½æ˜¯å†…éƒ¨çš„åœ°å€
     if ((va & 0xffC00000) == FAKE_IMAGE_BASE)
     {
-        // ¼ÙÈçÎÒÃÇ·ÃÎÊµ½ÁËÒ»¸öµØÖ·£¬Õâ¸öµØÖ·ÊÇIATµÄº¯Êıµ÷ÓÃ£¬ÄÇÃ´ÎÒÃÇ
-        // Ö±½Ó·µ»ØÒ»¸öÄ£¿éÄÚµÄÄÚ´æµØÖ·£¬µ±ÏµÍ³µ÷ÓÃ½øÈëÕâ¸öº¯ÊıÊ±£¬±ÈÈç
-        // Í¨¹ıRet,»òÕßjmp£¬ÄÇÃ´ÎÒÃÇ¼ì²âÕâ¸öµØÖ·ÊÇ·ñ¸úÎÒÃÇÄ£¿éÄÚÕâ¸öÌØÊâ
-        // µØÖ·Ò»Ñù£¬¼ÙÈçÊÇµÄ»°£¬ÎÒÃÇÒª¶îÍâÖ´ĞĞÒ»´Îret²Ù×÷¡£ÒòÎªÌø×ªµ½Íâ²¿
-        // µÄcallº¯ÊıÒÔºó£¬µÈËûÖ´ĞĞÍêÁË£¬ËûĞèÒªretµ½ÎÒÃÇÄÚ²¿µÄµØÖ·ÉÏ
+        // å‡å¦‚æˆ‘ä»¬è®¿é—®åˆ°äº†ä¸€ä¸ªåœ°å€ï¼Œè¿™ä¸ªåœ°å€æ˜¯IATçš„å‡½æ•°è°ƒç”¨ï¼Œé‚£ä¹ˆæˆ‘ä»¬
+        // ç›´æ¥è¿”å›ä¸€ä¸ªæ¨¡å—å†…çš„å†…å­˜åœ°å€ï¼Œå½“ç³»ç»Ÿè°ƒç”¨è¿›å…¥è¿™ä¸ªå‡½æ•°æ—¶ï¼Œæ¯”å¦‚
+        // é€šè¿‡Ret,æˆ–è€…jmpï¼Œé‚£ä¹ˆæˆ‘ä»¬æ£€æµ‹è¿™ä¸ªåœ°å€æ˜¯å¦è·Ÿæˆ‘ä»¬æ¨¡å—å†…è¿™ä¸ªç‰¹æ®Š
+        // åœ°å€ä¸€æ ·ï¼Œå‡å¦‚æ˜¯çš„è¯ï¼Œæˆ‘ä»¬è¦é¢å¤–æ‰§è¡Œä¸€æ¬¡retæ“ä½œã€‚å› ä¸ºè·³è½¬åˆ°å¤–éƒ¨
+        // çš„callå‡½æ•°ä»¥åï¼Œç­‰ä»–æ‰§è¡Œå®Œäº†ï¼Œä»–éœ€è¦retåˆ°æˆ‘ä»¬å†…éƒ¨çš„åœ°å€ä¸Š
         //t_addr = pe_loader_va2fa2(mod->pe_mod, va);
         if (vmp_hlp_get_symbol(mod->hlp, va - FAKE_IMAGE_BASE, sym_name, sizeof (sym_name), NULL))
         {
@@ -3544,8 +3566,8 @@ static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
     }
 
 
-    // µØÖ·¼ÙÈçÔÚPEÎÄ¼şÄÚ£¬ÄÇÃ´ÎÒÃÇ¾Í°ÑÕâ¸öĞéÄâµØÖ·×ª³Éµ±Ç°ÎÄ¼şµØÖ·
-    // ¼ÙÈç²»ÔÚ£¬ÄÇÃ´¾ÍÊÇ¶ÑÕ»µØÖ·
+    // åœ°å€å‡å¦‚åœ¨PEæ–‡ä»¶å†…ï¼Œé‚£ä¹ˆæˆ‘ä»¬å°±æŠŠè¿™ä¸ªè™šæ‹Ÿåœ°å€è½¬æˆå½“å‰æ–‡ä»¶åœ°å€
+    // å‡å¦‚ä¸åœ¨ï¼Œé‚£ä¹ˆå°±æ˜¯å †æ ˆåœ°å€
 
     return t_addr?t_addr:new_addr;
 }

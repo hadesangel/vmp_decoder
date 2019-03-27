@@ -1,4 +1,4 @@
-
+ï»¿
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +70,7 @@ typedef struct x86_emu_reg
 typedef struct x86_emu_reg
 {
     uint32_t    type;
-    // ±¾À´ÕâÀïÓ¦¸ÃÊÇ64Î»µÄ£¬µ«ÊÇ64Î»ºÜ¶àµØ·½ÎÒ¶¼Ã»ÏëÇå³ş£¬ËùÒÔÏÈ¼ÌĞøÊ¹ÓÃ32Î»ÁË
+    // æœ¬æ¥è¿™é‡Œåº”è¯¥æ˜¯64ä½çš„ï¼Œä½†æ˜¯64ä½å¾ˆå¤šåœ°æ–¹æˆ‘éƒ½æ²¡æƒ³æ¸…æ¥šï¼Œæ‰€ä»¥å…ˆç»§ç»­ä½¿ç”¨32ä½äº†
     uint32_t    known;
     union
     {
@@ -162,9 +162,23 @@ typedef struct x86_emu_operand
     } u;
 } x86_emu_operand_t;
 
+#define X86_JMP         1
+#define X86_COND_JMP    2
+
+typedef struct x86_emu_flow_analysis
+{
+    // 1: jmp
+    // 2: condition jmp 
+    int jmp_type;
+    int cond;
+    uint8_t *true_addr;
+    uint8_t *false_addr;
+} x86_emu_flow_analysis_t;
+
+
 typedef struct x86_emu_mod
 {
-    // ²»Òª¸Ä±äÍ¨ÓÃ¼Ä´æÆ÷µÄÎ»ÖÃ£¬ÎÒÔÚ´úÂëÀïÃæÄ³Ğ©µØ·½°ÑËûµ±³ÉÒ»¸öÊı×éÀ´´¦ÀíÁË
+    // ä¸è¦æ”¹å˜é€šç”¨å¯„å­˜å™¨çš„ä½ç½®ï¼Œæˆ‘åœ¨ä»£ç é‡Œé¢æŸäº›åœ°æ–¹æŠŠä»–å½“æˆä¸€ä¸ªæ•°ç»„æ¥å¤„ç†äº†
     struct x86_emu_reg eax;
     struct x86_emu_reg ecx;
     struct x86_emu_reg edx;
@@ -179,7 +193,7 @@ typedef struct x86_emu_mod
 
     x86_emu_eflags_t eflags;
 
-    // ÅĞ¶Ï»úÆ÷µÄ×Ö³¤£¬32Î»ÏµÍ³¾ÍÊÇ32£¬64Î»¾ÍÊÇ64
+    // åˆ¤æ–­æœºå™¨çš„å­—é•¿ï¼Œ32ä½ç³»ç»Ÿå°±æ˜¯32ï¼Œ64ä½å°±æ˜¯64
     int                 word_size;
 
     struct
@@ -212,6 +226,7 @@ typedef struct x86_emu_mod
     struct vmp_hlp *hlp;
 
     uint64_t        addr64_prefix;
+    x86_emu_flow_analysis_t analys;
 } x86_emu_mod_t;
 
 typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
@@ -219,11 +234,11 @@ typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
 typedef struct x86_emu_on_inst_item
 {
     uint8_t             opcode[3];
-    // x86Ö¸Áî¼¯ÖĞ£¬ÓĞĞ©Ö¸ÁîÊÇÎŞ·¨¸ù¾İµÚÒ»¸ö×Ö½ÚÅĞ¶Ï³öÖ¸ÁîÀàĞÍµÄ
-    // ĞèÒª½áºÏµÚ2¸öÖ¸Áî£¬±ÈÈç
+    // x86æŒ‡ä»¤é›†ä¸­ï¼Œæœ‰äº›æŒ‡ä»¤æ˜¯æ— æ³•æ ¹æ®ç¬¬ä¸€ä¸ªå­—èŠ‚åˆ¤æ–­å‡ºæŒ‡ä»¤ç±»å‹çš„
+    // éœ€è¦ç»“åˆç¬¬2ä¸ªæŒ‡ä»¤ï¼Œæ¯”å¦‚
     // 81 e2 28 02 1e 46        [and edx, 0x461e0228]
     // 81 f6 a2 70 21 62        [xor esi, 0x622170a2]
-    // ÕâĞ©Ö¸ÁîĞèÒªÌáÈ¡modrm£¬Ò²¾ÍÊÇµÚ2¸ö×Ö½ÚÖĞµÄreg fieldÀ´×öÕç±ğ¡£
+    // è¿™äº›æŒ‡ä»¤éœ€è¦æå–modrmï¼Œä¹Ÿå°±æ˜¯ç¬¬2ä¸ªå­—èŠ‚ä¸­çš„reg fieldæ¥åšç”„åˆ«ã€‚
     int8_t              reg;
     x86_emu_on_inst     on_inst;
 } x86_emu_on_inst_item_t;
@@ -237,19 +252,6 @@ typedef struct x86_emu_on_inst_item
 
 #define XE_DWORD_W1(v32)                (v32 & 0x0000ffff)
 #define XE_DWORD_W2(v32)                (v32 & 0xffff0000)
-
-#define X86_JMP         1
-#define X86_COND_JMP    2
-
-typedef struct x86_emu_flow_analysis
-{
-    // 1: jmp
-    // 2: condition jmp 
-    int jmp_type;
-    int cond;
-    uint8_t *true_addr;
-    uint8_t *false_addr;
-} x86_emu_flow_analysis_t;
 
 struct x86_emu_create_param
 {
@@ -266,7 +268,7 @@ int x86_emu_destroy(struct x86_emu_mod *mod);
             1           succes, and update eip
 */
 #define X86_EMU_UPDATE_EIP      1
-int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len, x86_emu_flow_analysis_t *analy);
+int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len, x86_emu_flow_analysis_t **analy);
 int x86_emu_stack_is_empty(struct x86_emu_mod *mod);
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod);
