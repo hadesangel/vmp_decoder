@@ -1,4 +1,4 @@
-
+﻿
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,7 +18,7 @@ extern "C" {
         return TRUE;
     }
 
-    struct vmp_hlp *vmp_hlp_create(struct pe_loader *loader, char *filename, HANDLE hand, char *base_addr)
+    struct vmp_hlp *vmp_hlp_create(char *filename)
     {
         struct vmp_hlp *mod = (struct vmp_hlp *)calloc(1, sizeof (mod[0]));
         DWORD options;
@@ -29,9 +29,6 @@ extern "C" {
             printf("vmp_hlp_create() failed when calloc()\n");
             return NULL;
         }
-
-        mod->base_addr = base_addr;
-        mod->pe_loader1 = loader;
 
         options = SymGetOptions();
         
@@ -53,7 +50,7 @@ extern "C" {
         }
 
         mod->mod_base = SymLoadModuleEx(GetCurrentProcess(),
-            hand, NULL, NULL, (DWORD64)0, 0, NULL, 0);
+            NULL, filename, NULL, (DWORD64)0, 0, NULL, 0);
 
         if (0 == mod->mod_base)
         {

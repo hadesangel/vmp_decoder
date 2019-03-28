@@ -1,4 +1,4 @@
-
+ï»¿
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -166,7 +166,7 @@ extern "C" {
             printf("pe_loader() failed when calloc()\n");
             goto fail_label;
         }
-        // 64k¶ÔÆë
+        // 64kå¯¹é½
         mod->image_base = (uint8_t *)((uint64_t)(mod->buf_base + 64 * 1024) & ~0xffff);
         fread(mod->image_base, mod->pe_header_size, 1, mod->fp);
 
@@ -288,13 +288,13 @@ extern "C" {
 
             if (section_start)
             {
-                *section_start = (unsigned char *)mod->image_base + psec_header[i].PointerToRawData;
+                *section_start = (unsigned char *)mod->image_base + psec_header[i].VirtualAddress;
             }
 
             if (section_size)
             {
-                *section_size = psec_header[i].SizeOfRawData ?
-                    psec_header[i].SizeOfRawData : psec_header[i].Misc.VirtualSize;
+                *section_size = psec_header[i].Misc.VirtualSize ?
+                     psec_header[i].Misc.VirtualSize:psec_header[i].SizeOfRawData;
             }
 
             return 1;

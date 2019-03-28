@@ -1,4 +1,4 @@
-
+﻿
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,7 @@ typedef struct vmp_hlp
     struct pe_loader *pe_loader1;
 } vmp_hlp_t;
 
-struct vmp_hlp *vmp_hlp_create(struct pe_loader *loader, char *filename, HANDLE hand, char *base_addr);
+struct vmp_hlp *vmp_hlp_create(char *filename);
 int vmp_hlp_destroy(struct vmp_hlp *mod);
 
 /*

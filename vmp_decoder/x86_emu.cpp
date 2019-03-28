@@ -262,6 +262,7 @@ struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param)
     }
 
     mod->pe_mod = param->pe_mod;
+    mod->vmp_in_callback = param->vmp_in_callback;
 
     mod->eax.type = OPERAND_TYPE_REG_EAX;
     mod->ebx.type = OPERAND_TYPE_REG_EBX;
@@ -2347,15 +2348,17 @@ static int x86_emu_call(struct x86_emu_mod *mod, uint8_t *code, int len)
 {
     uint32_t known = UINT_MAX;
     uint64_t ret_addr;
+    int offset;
 
     switch (code[0])
     {
     case 0xe8:
+        offset = mbytes_read_int_little_endian_4b(code + 1);
         ret_addr = (uint64_t)(code + len);
         x86_emu__push(mod, (uint8_t *)&known, (uint8_t *)&ret_addr, mod->word_size/8);
 
         mod->analys.jmp_type = X86_JMP;
-        mod->analys.true_addr = mod->inst.start + mod->inst.len + mbytes_read_int_little_endian_4b(code + 1);
+        mod->analys.true_addr = mod->inst.start + mod->inst.len + offset;
         break;
 
     default:
@@ -2385,12 +2388,14 @@ static int x86_emu_jmp(struct x86_emu_mod *mod, uint8_t *code, int len)
             mod->eip.known = UINT_MAX;
             mod->eip.u.r32 = reg->u.r32;
 
+#if 0
             if (mod->eip.u.r32 == X86_EMU_EXTERNAL_CALL)
             {
                 mod->eip.u.r32 = mbytes_read_int_little_endian_4b(mod->stack.data + x86_emu_stack_top(mod));
                 mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
                 x86_emu__pop(mod, 4);
             }
+#endif
 
             mod->analys.jmp_type = X86_JMP;
             mod->analys.true_addr = x86_emu_mem_fix(mod->eip.u.r32);
@@ -2416,12 +2421,20 @@ static int x86_emu_ret(struct x86_emu_mod *mod, uint8_t *code, int len)
         mod->eip.u.r32 = mbytes_read_int_little_endian_4b(mod->stack.data + x86_emu_stack_top(mod));
         mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
         x86_emu__pop(mod, 4);
+#if 0
+        printf("addr = 0x%x\n", mod->eip.u.r32);
         if (mod->eip.u.r32 == X86_EMU_EXTERNAL_CALL)
-        { 
+        {
             printf("external call\n");
             mod->eip.u.r32 = mbytes_read_int_little_endian_4b(mod->stack.data + x86_emu_stack_top(mod));
             mod->eip.known = mbytes_read_int_little_endian_4b(mod->stack.known + x86_emu_stack_top(mod));
             x86_emu__pop(mod, 4);
+        printf("addr = 0x%x\n", mod->eip.u.r32);
+        }
+#endif
+        if (mod->eip.u.r32 == X86_EMU_EXTERNAL_CALL)
+        {
+            mod->analys.external_call = 1;
         }
 
         mod->analys.jmp_type = X86_JMP;
@@ -3527,35 +3540,21 @@ static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
 {
     uint8_t *new_addr = NULL;
     uint8_t *t_addr = NULL;
-    char sym_name[128];
 
     // 在CPU的模拟器内部，暂时有以下几种类型的地址
     // 1. 堆栈内的地址，访问堆栈时需要使用
     // 2. PE文件内的地址，jmp时需要
     // 3. 访问到了IAT地址，比如访问time()，那么这个地址在IAT表内
 
-    // 可能是内部的地址
-    if ((va & 0xffC00000) == FAKE_IMAGE_BASE)
-    {
-        // 假如我们访问到了一个地址，这个地址是IAT的函数调用，那么我们
-        // 直接返回一个模块内的内存地址，当系统调用进入这个函数时，比如
-        // 通过Ret,或者jmp，那么我们检测这个地址是否跟我们模块内这个特殊
-        // 地址一样，假如是的话，我们要额外执行一次ret操作。因为跳转到外部
-        // 的call函数以后，等他执行完了，他需要ret到我们内部的地址上
-        //t_addr = pe_loader_va2fa2(mod->pe_mod, va);
-        if (vmp_hlp_get_symbol(mod->hlp, va - FAKE_IMAGE_BASE, sym_name, sizeof (sym_name), NULL))
-        {
-            printf("find symbol[%s]\n", sym_name);
-        }
-
-        t_addr = mod->mem.external_call;
-    }
+#if 1
     // FIXME
-    else if ((va & 0xffff) == 0x20bc)
+    if ((va & 0xffff) == 0x20bc)
     { 
         t_addr = mod->mem.external_call;
     }
-    else if ((va >= mod->stack.esp_start) && (va <= mod->stack.esp_end))
+    else 
+#endif
+    if ((va >= mod->stack.esp_start) && (va <= mod->stack.esp_end))
     {
         new_addr = (uint8_t *)((uint64_t)va | mod->addr64_prefix);
     }
@@ -3615,6 +3614,23 @@ uint8_t *x86_emu_reg8_get_known_ptr(struct x86_emu_mod *mod, int reg_type)
 int x86_emu_stack_is_empty(struct x86_emu_mod *mod)
 {
     return (x86_emu_stack_top(mod) == mod->stack.size);
+}
+
+int x86_emu_on_ret(struct x86_emu_mod *mod)
+{
+    return x86_emu_ret(mod, (uint8_t *)"\xC3", 1);
+}
+
+int x86_emu_set(struct x86_emu_mod *mod, int reg, uint32_t val)
+{
+    struct x86_emu_reg *dst_reg;
+
+    dst_reg = x86_emu_reg_get(mod, reg);
+
+    dst_reg->known = UINT_MAX;
+    dst_reg->u.r32 = val;
+
+    return 0;
 }
 
 

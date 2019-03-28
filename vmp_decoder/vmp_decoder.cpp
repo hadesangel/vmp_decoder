@@ -16,6 +16,7 @@ extern "C" {
 #include "macro_list.h"
 #include "vmp_hlp.h"
 #include "x86_emu.h"
+#include <time.h>
 
 #define print_err   printf
 #define time2s(_a)   ""
@@ -99,6 +100,7 @@ extern "C" {
         struct {
             unsigned already_dot_dump   : 1;
             unsigned vmp                : 16;
+            unsigned external_call      : 1;
         } debug;
 
         struct {
@@ -172,7 +174,7 @@ extern "C" {
         mod->format_options.lowercase_hex = 1;
 
         mod->debug.dump_inst = 1;
-        mod->debug.hlp = vmp_hlp_create(mod->pe_mod, filename, mod->pe_mod->file_handl, (char *)mod->pe_mod->image_base);
+        mod->debug.hlp = vmp_hlp_create(filename);
         if (!mod->debug.hlp)
         {
             printf("vmp_decoder_create() failed when vmp_hlp_create(). %s:%d\r\n", __FILE__, __LINE__);
@@ -295,9 +297,10 @@ extern "C" {
         return 0;
     }
 
-    struct vmp_cfg_node *vmp_cfg_create (struct vmp_decoder *decoder, unsigned char *addr)
+    struct vmp_cfg_node *vmp_cfg_create (struct vmp_decoder *decoder, unsigned char *addr, int external_call)
     {
         struct vmp_cfg_node *node = NULL;
+        //char sym_name[128];
 
         node = (struct vmp_cfg_node *)calloc(1, sizeof (node[0]));
         if (NULL == node)
@@ -306,7 +309,19 @@ extern "C" {
             return NULL;
         }
 
-        sprintf(node->name, "label%d", ++decoder->label_counts);
+        //if (vmp_hlp_get_symbol(decoder->debug.hlp, addr - decoder->image_base, sym_name, sizeof (sym_name), NULL))
+        if (external_call)
+        {
+            //printf("externa call [%s]\n", sym_name);
+            //sprintf(node->name, "%s", sym_name);
+            sprintf(node->name, "time64");
+            node->debug.external_call = 1;
+        }
+        else
+        {
+            sprintf(node->name, "label%d", ++decoder->label_counts);
+        }
+
         node->id = addr;
 
         mlist_add(decoder->cfg, node, in_list);
@@ -544,6 +559,12 @@ default_label:
 
             if (inst_in_vmp)
             {
+                if (!vmp_start)
+                {
+                    printf("Now, we enter vmp address. %s:%d\r\n", __FILE__, __LINE__);
+                    vmp_start = 1;
+                }
+
                 if (!not_empty && !x86_emu_stack_is_empty(decoder->emu))
                 {
                     not_empty = 1;
@@ -579,7 +600,7 @@ default_label:
 
             if (!cur_cfg_node)
             {
-                if (NULL == (cur_cfg_node = vmp_cfg_create(decoder, vmp_run_addr)))
+                if (NULL == (cur_cfg_node = vmp_cfg_create(decoder, vmp_run_addr, 0)))
                 {
                     printf("vmp_decoder_run() failed when vmp_cfg_create(). %s:%d\r\n", __FILE__, __LINE__);
                     return NULL;
@@ -590,6 +611,7 @@ default_label:
             cur_cfg_node = vmp_stack_top(cfg_node_stack);
             assert(cur_cfg_node);
 
+vmp_run_label:
             ret = x86_emu_run(decoder->emu, vmp_run_addr, decode_len, &flow_analy);
 
             // 这个分析并非时纯的静态分析，实际上他一直在运算，所以我们在碰到条件跳转时，不
@@ -603,13 +625,21 @@ default_label:
                 }
                 else
                 {
-                    t_cfg_node = vmp_cfg_create(decoder, flow_analy->true_addr);
+                    t_cfg_node = vmp_cfg_create(decoder, flow_analy->true_addr, flow_analy->external_call);
                     cur_cfg_node->jmp_node = t_cfg_node;
                     cur_cfg_node = t_cfg_node;
                     vmp_run_addr = flow_analy->true_addr;
                 }
 
                 printf("jmp handler[%s]\n\n", cur_cfg_node->name);
+
+                if (cur_cfg_node->debug.external_call)
+                {
+                    vmp_run_addr = (uint8_t *)"\xC3";
+                    decode_len = 1;
+                    x86_emu_set(decoder->emu, OPERAND_TYPE_REG_EAX, (uint32_t)time(NULL));
+                    goto vmp_run_label;
+                }
             }
             else
             {

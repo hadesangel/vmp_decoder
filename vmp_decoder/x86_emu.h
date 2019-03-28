@@ -171,10 +171,12 @@ typedef struct x86_emu_flow_analysis
     // 2: condition jmp 
     int jmp_type;
     int cond;
+    int external_call;
     uint8_t *true_addr;
     uint8_t *false_addr;
 } x86_emu_flow_analysis_t;
 
+typedef int(*x86_emu_vmp_in_callback) (void *ref, unsigned char *addr);
 
 typedef struct x86_emu_mod
 {
@@ -227,6 +229,7 @@ typedef struct x86_emu_mod
 
     uint64_t        addr64_prefix;
     x86_emu_flow_analysis_t analys;
+    x86_emu_vmp_in_callback vmp_in_callback;
 } x86_emu_mod_t;
 
 typedef int(*x86_emu_on_inst) (struct x86_emu_mod *mod, uint8_t *addr, int len);
@@ -258,6 +261,7 @@ struct x86_emu_create_param
     int word_size;
     struct pe_loader *pe_mod;
     struct vmp_hlp *hlp;
+    x86_emu_vmp_in_callback vmp_in_callback;
 };
 
 struct x86_emu_mod *x86_emu_create(struct x86_emu_create_param *param);
@@ -272,6 +276,8 @@ int x86_emu_run(struct x86_emu_mod *mod, uint8_t *code, int len, x86_emu_flow_an
 int x86_emu_stack_is_empty(struct x86_emu_mod *mod);
 
 uint8_t *x86_emu_eip(struct x86_emu_mod *mod);
+int x86_emu_on_ret(struct x86_emu_mod *mod);
+int x86_emu_set(struct x86_emu_mod *mod, int reg, uint32_t val);
 
 #endif
 
