@@ -132,6 +132,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="liveness.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pe_loader.cpp" />
     <ClCompile Include="vmp_decoder.cpp" />
@@ -139,6 +140,7 @@
     <ClCompile Include="x86_emu.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="liveness.h" />
     <ClInclude Include="macro_list.h" />
     <ClInclude Include="mbytes.h" />
     <ClInclude Include="pe_loader.h" />
