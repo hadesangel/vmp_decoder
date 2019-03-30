@@ -90,6 +90,12 @@ extern "C" {
         } cfg;
     } vmp_decoder_t;
 
+    struct vmp_cfg_node_link
+    {
+        struct vmp_cfg_node_link *next;
+        struct vmp_cfg_node *node;
+    };
+
     typedef struct vmp_cfg_node
     {
         uint8_t *id;
@@ -107,9 +113,21 @@ extern "C" {
             struct vmp_cfg_node *prev;
         } in_list;
 
-        struct vmp_cfg_node *true_node;
-        struct vmp_cfg_node *false_node;
-        struct vmp_cfg_node *jmp_node;
+        struct 
+        {
+            struct vmp_cfg_node_link *list;
+            int count;
+        } trues;
+
+        struct
+        {
+        } falses;
+
+        struct
+        {
+            struct vmp_cfg_node_link *list;
+            int count;
+        } jmps;
     } vmp_cfg_node_t;
 
 #define vmp_stack_push(_st, _val)       (_st[++_st##_i] = _val)
@@ -121,6 +139,8 @@ extern "C" {
     static struct vmp_cfg_node *vmp_cfg_find(struct vmp_decoder *decoder, uint8_t *id);
     static int vmp_cfg_add_inst(struct vmp_cfg_node *cfg, uint8_t *addr, int len);
     unsigned char *vmp_decoder_find_vmp_start_addr(struct vmp_decoder *decoder);
+    static int vmp_cfg_add_edges(struct vmp_decoder *decoder,
+        struct vmp_cfg_node *from, struct vmp_cfg_node *to, int jmp_type);
 #define vmp_sym_addr(_decoder, _address)  (UINT64)(pe_loader_fa2rva(_decoder->pe_mod, (DWORD64)_address))
 
     struct vmp_decoder *vmp_decoder_create(char *filename, DWORD vmp_start_va, int dump_pe)
@@ -311,7 +331,7 @@ extern "C" {
         //if (vmp_hlp_get_symbol(decoder->debug.hlp, addr - decoder->image_base, sym_name, sizeof (sym_name), NULL))
         if (iat_call)
         {
-            sprintf(node->name, "%s", ((unsigned char **)addr)[0] + 2);
+            sprintf(node->name, "%s", ((unsigned char **)addr)[0]);
             node->debug.external_call = 1;
         }
         else
@@ -339,7 +359,8 @@ extern "C" {
     int vmp_cfg_node__dump(struct vmp_decoder *decoder, struct vmp_cfg_node *node)
     {
         struct vmp_cfg_node *list;
-        int i;
+        struct vmp_cfg_node_link *link;
+        int i, j;
 
         if (node->debug.already_dot_dump)
             return 0;
@@ -350,7 +371,7 @@ extern "C" {
         {
             if (list->debug.external_call)
             { 
-                fprintf(decoder->dot_graph_output, " %s [color=red, label=%s];\n", list->name, list->name);
+                fprintf(decoder->dot_graph_output, " %s [style=\"filled\",color=red, label=%s];\n", list->name, list->name);
             }
             else
             { 
@@ -360,20 +381,21 @@ extern "C" {
 
         for (i = 0, list = decoder->cfg.list; i < decoder->cfg.counts; i++, list = list->in_list.next)
         {
-            if (list->jmp_node)
+            for (j = 0, link = list->jmps.list; j < list->jmps.count; j++, link = link->next)
             {
-                fprintf(decoder->dot_graph_output, "%s -> %s;\n", list->name, list->jmp_node->name);
+                fprintf(decoder->dot_graph_output, "%s -> %s;\n", list->name, link->node->name);
             }
-            else if (list->true_node)
+
+            for (j = 0, link = list->trues.list; j < list->trues.count; j++, link = link->next)
             {
-                fprintf(decoder->dot_graph_output, "%s -> %s;\n", list->name, list->true_node->name);
+                fprintf(decoder->dot_graph_output, "%s -> %s;\n", list->name, link->node->name);
             }
         }
 
         return 0;
     }
 
-    int vmp_cfg_node_dump (struct vmp_decoder *decoder, struct vmp_cfg_node *start)
+    int vmp_cfg_dump (struct vmp_decoder *decoder, struct vmp_cfg_node *start)
     {
         fprintf(decoder->dot_graph_output, "digraph {\n");
         vmp_cfg_node__dump(decoder, start);
@@ -630,14 +652,16 @@ vmp_run_label:
 
                 if ((t_cfg_node = vmp_cfg_find(decoder, addr)))
                 {
-                    cur_cfg_node->jmp_node = t_cfg_node;
                     vmp_run_addr = flow_analy->true_addr;
+                    vmp_cfg_add_edges(decoder, cur_cfg_node, t_cfg_node, flow_analy->jmp_type);
                 }
                 else 
                 {
                     iat_call = pe_loader_addr_in_iat(decoder->pe_mod, addr);
                     t_cfg_node = vmp_cfg_create(decoder, flow_analy->true_addr, iat_call);
-                    cur_cfg_node->true_node = t_cfg_node;
+                    
+                    vmp_cfg_add_edges(decoder, cur_cfg_node, t_cfg_node, flow_analy->jmp_type);
+
                     cur_cfg_node = t_cfg_node;
                     vmp_run_addr = flow_analy->true_addr;
                 }
@@ -661,7 +685,7 @@ vmp_run_label:
 
         if (decoder->dot_graph_output)
         {
-            vmp_cfg_node_dump(decoder, cfg_node_stack[0]);
+            vmp_cfg_dump(decoder, cfg_node_stack[0]);
             fclose(decoder->dot_graph_output);
             system("dot.exe -Tpng -o 1.png 1.dot");
         }
@@ -720,6 +744,28 @@ vmp_run_label:
         }
 
         return -1;
+    }
+
+    static int vmp_cfg_add_edges(struct vmp_decoder *decoder, 
+        struct vmp_cfg_node *from, struct vmp_cfg_node *to, int jmp_type)
+    {
+        struct vmp_cfg_node_link *link = (struct vmp_cfg_node_link *)calloc(1, sizeof (link[0]));
+        assert(link);
+
+        link->node = to;
+        if (jmp_type == X86_JMP)
+        {
+            link->next = from->jmps.list;
+            from->jmps.list = link;
+            from->jmps.count++;
+        }
+        else
+        {
+            link->next = from->trues.list;
+            from->trues.list = link;
+            from->trues.count++;
+        }
+        return 0;
     }
 
 
