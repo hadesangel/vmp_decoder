@@ -54,7 +54,6 @@ extern "C" {
         xed_bool_t ast;
 
         unsigned int vmp_start_va;
-        unsigned int vmp_start_fa;
 
         xed_machine_mode_enum_t mmode;
         xed_address_width_enum_t stack_addr_width;
@@ -297,7 +296,7 @@ extern "C" {
         return 0;
     }
 
-    struct vmp_cfg_node *vmp_cfg_create (struct vmp_decoder *decoder, unsigned char *addr, int external_call)
+    struct vmp_cfg_node *vmp_cfg_create (struct vmp_decoder *decoder, unsigned char *addr, int iat_call)
     {
         struct vmp_cfg_node *node = NULL;
         //char sym_name[128];
@@ -310,11 +309,9 @@ extern "C" {
         }
 
         //if (vmp_hlp_get_symbol(decoder->debug.hlp, addr - decoder->image_base, sym_name, sizeof (sym_name), NULL))
-        if (external_call)
+        if (iat_call)
         {
-            //printf("externa call [%s]\n", sym_name);
-            //sprintf(node->name, "%s", sym_name);
-            sprintf(node->name, "time64");
+            sprintf(node->name, "%s", ((unsigned char **)addr)[0] + 2);
             node->debug.external_call = 1;
         }
         else
@@ -351,18 +348,25 @@ extern "C" {
 
         for (i = 0, list = decoder->cfg.list; i < decoder->cfg.counts; i++, list = list->in_list.next)
         {
-            fprintf(decoder->dot_graph_output, " %s [label=%s]", list->name, list->name);
+            if (list->debug.external_call)
+            { 
+                fprintf(decoder->dot_graph_output, " %s [color=red, label=%s];\n", list->name, list->name);
+            }
+            else
+            { 
+                fprintf(decoder->dot_graph_output, " %s [label=%s];\n", list->name, list->name);
+            }
         }
 
         for (i = 0, list = decoder->cfg.list; i < decoder->cfg.counts; i++, list = list->in_list.next)
         {
             if (list->jmp_node)
             {
-                fprintf(decoder->dot_graph_output, "%s -> %s", list->name, list->jmp_node->name);
+                fprintf(decoder->dot_graph_output, "%s -> %s;\n", list->name, list->jmp_node->name);
             }
             else if (list->true_node)
             {
-                fprintf(decoder->dot_graph_output, "%s -> %s", list->name, list->true_node->name);
+                fprintf(decoder->dot_graph_output, "%s -> %s;\n", list->name, list->true_node->name);
             }
         }
 
@@ -419,7 +423,7 @@ extern "C" {
         int ret_addrs_i = -1;
 
         unsigned char *inst_queue[5] = {0};
-        int queue_i = -1;
+        int inst_queue_i = -1;
 
         unsigned char *jmp_queue[128];
         int jmp_queue_i = -1;
@@ -432,7 +436,8 @@ extern "C" {
             xed_decoded_inst_zero(&xedd);
             xed_decoded_inst_set_mode(&xedd, decoder->mmode, decoder->stack_addr_width);
 
-            inst_queue[++queue_i % counts_of_array(inst_queue)] = start_addr;
+            inst_queue_i = ++inst_queue_i % counts_of_array(inst_queue);
+            inst_queue[inst_queue_i] = start_addr;
 
             xed_error = xed_decode(&xedd, start_addr, 15);
             if (xed_error != XED_ERROR_NONE)
@@ -518,11 +523,12 @@ default_label:
 
         if (inst_in_vmp)
         {
-            decoder->vmp_start_addr = start_addr;
-            decoder->vmp_start_fa = (uint32_t)((DWORD64)start_addr - (DWORD64)decoder->pe_mod->image_base);
-            printf("Wooow, we found vmp start address. %p, %s:%d\r\n", start_addr, __FILE__, __LINE__);
+            inst_queue_i -= 1;
+            if (inst_queue_i < 0) inst_queue_i += counts_of_array(inst_queue);
 
-            return start_addr;
+            //decoder->vmp_start_addr = inst_queue[inst_queue_i];
+            printf("Wooow, we found vmp start address. %p, %s:%d\r\n", inst_queue[inst_queue_i], __FILE__, __LINE__);
+            return inst_queue[inst_queue_i];
         }
 
         return NULL;
@@ -537,7 +543,7 @@ default_label:
         struct vmp_cfg_node *cfg_node_stack[128];
         int cfg_node_stack_i = -1;
         struct vmp_cfg_node *cur_cfg_node = NULL, *t_cfg_node;
-        static int vmp_start = 0, not_empty = 0;
+        static int vmp_start = 0, not_empty = 0, iat_call;
         x86_emu_flow_analysis_t *flow_analy;
 
         if (!decoder->dot_graph_output)
@@ -608,32 +614,37 @@ default_label:
                 vmp_stack_push(cfg_node_stack, cur_cfg_node);
             }
 
-            cur_cfg_node = vmp_stack_top(cfg_node_stack);
+            //cur_cfg_node = vmp_stack_top(cfg_node_stack);
             assert(cur_cfg_node);
 
 vmp_run_label:
             ret = x86_emu_run(decoder->emu, vmp_run_addr, decode_len, &flow_analy);
 
+            iat_call = 0;
             // 这个分析并非时纯的静态分析，实际上他一直在运算，所以我们在碰到条件跳转时，不
             // 分析那些走不到的分支，但是我们可以先把他加入进来
             if (flow_analy->jmp_type)
             {
-                uint8_t *addr = ((flow_analy->jmp_type == X86_COND_JMP) || flow_analy->cond ? flow_analy->true_addr : flow_analy->false_addr);
+                //uint8_t *addr = ((flow_analy->jmp_type == X86_COND_JMP) || flow_analy->cond) ? flow_analy->true_addr : flow_analy->false_addr;
+                uint8_t *addr = ((flow_analy->jmp_type == X86_COND_JMP) || flow_analy->cond || (flow_analy->jmp_type == X86_JMP)) ? flow_analy->true_addr : flow_analy->false_addr;
 
-                if (vmp_cfg_find(decoder, addr))
+                if ((t_cfg_node = vmp_cfg_find(decoder, addr)))
                 {
-                }
-                else
-                {
-                    t_cfg_node = vmp_cfg_create(decoder, flow_analy->true_addr, flow_analy->external_call);
                     cur_cfg_node->jmp_node = t_cfg_node;
+                    vmp_run_addr = flow_analy->true_addr;
+                }
+                else 
+                {
+                    iat_call = pe_loader_addr_in_iat(decoder->pe_mod, addr);
+                    t_cfg_node = vmp_cfg_create(decoder, flow_analy->true_addr, iat_call);
+                    cur_cfg_node->true_node = t_cfg_node;
                     cur_cfg_node = t_cfg_node;
                     vmp_run_addr = flow_analy->true_addr;
                 }
 
                 printf("jmp handler[%s]\n\n", cur_cfg_node->name);
 
-                if (cur_cfg_node->debug.external_call)
+                if (iat_call)
                 {
                     vmp_run_addr = (uint8_t *)"\xC3";
                     decode_len = 1;
@@ -650,7 +661,7 @@ vmp_run_label:
 
         if (decoder->dot_graph_output)
         {
-            vmp_cfg_node_dump(decoder, cur_cfg_node);
+            vmp_cfg_node_dump(decoder, cfg_node_stack[0]);
             fclose(decoder->dot_graph_output);
             system("dot.exe -Tpng -o 1.png 1.dot");
         }

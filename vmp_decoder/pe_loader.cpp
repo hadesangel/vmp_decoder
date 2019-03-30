@@ -200,6 +200,7 @@ extern "C" {
 
         mod->fake_image_base = popt_header->ImageBase;
         pe_loader_fix_reloc(mod, 1);
+        pe_loader_fix_iat(mod);
 
         //printf("iat addr = 0x%08x, popt_head = 0x%08x\r\n", iat_addr, popt_header->ImageBase);
 
@@ -301,6 +302,53 @@ extern "C" {
         }
 
         return 0;
+    }
+
+    int pe_loader_addr_in_iat(struct pe_loader *mod, unsigned char *iat)
+    {
+#undef func_format
+#undef func_format_s
+#define func_format     "pe_loader_addr_in_iat(mod:%p, rva:0x%x)"
+#define func_format_s   mod, rva
+#if 0
+        PIMAGE_DOS_HEADER pdos_header;
+        PIMAGE_NT_HEADERS32 pnt_headder;
+        DWORD rva_import_table;
+        int i, j;
+
+        pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
+
+        rva_import_table = pnt_headder->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+        if (!rva_import_table)
+        {
+            return 0;
+        }
+
+        PIMAGE_IMPORT_DESCRIPTOR p_import_tab = (PIMAGE_IMPORT_DESCRIPTOR)(mod->image_base + rva_import_table);
+        PIMAGE_THUNK_DATA32 p_thunk;
+        IMAGE_IMPORT_DESCRIPTOR null_iid = {0};
+        IMAGE_THUNK_DATA32 null_trunk = { 0 };
+
+        for (i = 0; memcmp(p_import_tab + i, &null_iid, sizeof(null_iid)); i++)
+        {
+            p_thunk = (PIMAGE_THUNK_DATA32)(mod->image_base + p_import_tab[i].FirstThunk);
+            for (j = 0; memcmp(p_thunk + j, &null_trunk, sizeof(null_trunk)); j++)
+            {
+                if ((uint8_t *)p_thunk == (mod->image_base + rva))
+                    return 1;
+            }
+        }
+
+        return 0;
+#else
+        if ((iat >= (unsigned char *)mod->iat_addr) && (iat < (unsigned char *)(&mod->iat_addr[mod->iat_addr_i])))
+        {
+            return 1;
+        }
+
+        return 0;
+#endif
     }
 
     int pe_loader_sym_find (struct pe_loader *mod, DWORD iat_addr, char *sym_name, int sym_buf_siz)
@@ -732,6 +780,50 @@ int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp)
         }
     }
 
+    return 0;
+}
+
+/* 修复 IAT 表，这个修复是专门针对vmp分析来做的，传统的IAT修复，是在
+ PE文件加载时，根据IAT描述的dll名和函数名来把对应的函数地址填入iat的
+ firstChunk表中，但是在我们的程序中，因为我们不需要把PE文件依赖的DLL
+ 一个个载入内存，所以这个地方我们直接把FirstChunk中每个条目指向的
+ IMAGE_IMPORT_BY_NAME回填进FirtChunk的条目中，假如不这样做，VMP在试图
+从IAT中取地址会直接导致崩溃。  */
+int pe_loader_fix_iat(struct pe_loader *mod)
+{
+#undef func_format
+#undef func_format_s
+#define func_format     "pe_loader_addr_in_iat(mod:%p, rva:0x%x)"
+#define func_format_s   mod, rva
+        PIMAGE_DOS_HEADER pdos_header;
+        PIMAGE_NT_HEADERS32 pnt_headder;
+        DWORD rva_import_table;
+        int i, j;
+
+        pdos_header = (PIMAGE_DOS_HEADER)mod->image_base;
+        pnt_headder = (PIMAGE_NT_HEADERS32)(((char *)pdos_header + pdos_header->e_lfanew));
+
+        rva_import_table = pnt_headder->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+        if (!rva_import_table)
+        {
+            return 0;
+        }
+
+        PIMAGE_IMPORT_DESCRIPTOR p_import_tab = (PIMAGE_IMPORT_DESCRIPTOR)(mod->image_base + rva_import_table);
+        PIMAGE_THUNK_DATA32 p_thunk;
+        IMAGE_IMPORT_DESCRIPTOR null_iid = {0};
+        IMAGE_THUNK_DATA32 null_trunk = { 0 };
+
+        for (i = 0; memcmp(p_import_tab + i, &null_iid, sizeof(null_iid)); i++)
+        { 
+            p_thunk = (PIMAGE_THUNK_DATA32)(mod->image_base + p_import_tab[i].FirstThunk);
+            for (j = 0; memcmp(p_thunk + j, &null_trunk, sizeof(null_trunk)); j++)
+            {
+                mod->iat_addr[mod->iat_addr_i] = (mod->image_base + p_thunk->u1.AddressOfData + 2);
+                *((uint32_t *)p_thunk) = (uint32_t)(uint64_t)&mod->iat_addr[mod->iat_addr_i];
+                mod->iat_addr_i++;
+            }
+        }
     return 0;
 }
 

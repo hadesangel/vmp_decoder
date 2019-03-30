@@ -3546,10 +3546,14 @@ static uint8_t *x86_emu_access_mem(struct x86_emu_mod *mod, uint32_t va)
     // 2. PE文件内的地址，jmp时需要
     // 3. 访问到了IAT地址，比如访问time()，那么这个地址在IAT表内
 
-#if 1
+#if 0
     // FIXME
     if ((va & 0xffff) == 0x20bc)
     { 
+        if (pe_loader_addr_in_iat (mod->pe_mod, new_addr = x86_emu_mem_fix(va)))
+        { 
+            printf("0x%08x in iat\n", va);
+        }
         t_addr = mod->mem.external_call;
     }
     else 

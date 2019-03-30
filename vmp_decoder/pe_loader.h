@@ -1,4 +1,4 @@
-
+ï»¿
 
 #ifndef __pe_loader_h__
 #define __pe_loader_h__
@@ -24,9 +24,12 @@ struct pe_loader
     int     is_x64;
     int     pe_header_size;
     int     size_of_image;
-    // Õâ¸ö²ÎÊıµÄÒâË¼Ê±ÔÚÓ³Éäµ½ÄÚ´æÊ±£¬Ö±½Ó°ÑÕû¸ösection°´ÕÕ±ê×¼
-    // dll¼ÓÔØµÄ·½Ê½Õ¹¿ª£¬ÕâÑù¿ÉÒÔÖ±½Ó²»ÓÃÔÙ×öµØÖ··ÃÎÊÁË¡£
+    // è¿™ä¸ªå‚æ•°çš„æ„æ€æ—¶åœ¨æ˜ å°„åˆ°å†…å­˜æ—¶ï¼Œç›´æ¥æŠŠæ•´ä¸ªsectionæŒ‰ç…§æ ‡å‡†
+    // dllåŠ è½½çš„æ–¹å¼å±•å¼€ï¼Œè¿™æ ·å¯ä»¥ç›´æ¥ä¸ç”¨å†åšåœ°å€è®¿é—®äº†ã€‚
     int     expand;
+
+    unsigned char *iat_addr[128];
+    int  iat_addr_i;
 };
 
 struct pe_loader *pe_loader_create(LPCTSTR path);
@@ -38,15 +41,17 @@ int pe_loader_sym_find(struct pe_loader *mod, DWORD rva, char *sym_name, int sym
 int pe_loader_fix_reloc(struct pe_loader *mod, int just_vmp);
 // virtual address to file address
 DWORD pe_loader_rva2rfa(struct pe_loader *mod, DWORD rva);
+int pe_loader_addr_in_iat(struct pe_loader *mod, unsigned char *addr);
 
-/* ĞéÄâµØÖ·ÓĞ2ÖÖ£¬Ò»ÖÖÊÇ½ø³ÌÔËĞĞµÄÕæÊµµØÖ·£¬Ò»ÖÖÊÇ³ÌĞò¸ù¾İpeÎÄ¼ş
- * Ä¬ÈÏµÄentry pointËã³öÀ´µÄµØÖ·£¬Õâ¸öº¯Êı¼ÆËãµÚÒ»ÖÖÇé¿ö£¬ÏÂÃæÄÇ¸ö
- * ´øÎ²²¿2ºó×ºµÄ¼ÆËãµÚ2ÖÖÇé¿ö  */
+/* è™šæ‹Ÿåœ°å€æœ‰2ç§ï¼Œä¸€ç§æ˜¯è¿›ç¨‹è¿è¡Œçš„çœŸå®åœ°å€ï¼Œä¸€ç§æ˜¯ç¨‹åºæ ¹æ®peæ–‡ä»¶
+ * é»˜è®¤çš„entry pointç®—å‡ºæ¥çš„åœ°å€ï¼Œè¿™ä¸ªå‡½æ•°è®¡ç®—ç¬¬ä¸€ç§æƒ…å†µï¼Œä¸‹é¢é‚£ä¸ª
+ * å¸¦å°¾éƒ¨2åç¼€çš„è®¡ç®—ç¬¬2ç§æƒ…å†µ  */
 uint8_t* pe_loader_va2fa(struct pe_loader *mod, uint8_t *va);
 uint8_t* pe_loader_va2fa2(struct pe_loader *mod, uint32_t va);
 
 DWORD pe_loader_fa2rva(struct pe_loader *mod, DWORD64 fa);
 DWORD64 pe_loader_fa_fix(struct pe_loader *mod, DWORD64 fa, int rva);
+int pe_loader_fix_iat(struct pe_loader *mod);
 DWORD pe_loader_entry_point(struct pe_loader *mod);
 PIMAGE_DOS_HEADER pe_loader_get_dos_header(struct pe_loader *mod);
 PIMAGE_NT_HEADERS pe_loader_get_nt_header(struct pe_loader *mod);
